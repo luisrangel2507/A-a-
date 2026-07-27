@@ -211,11 +211,19 @@ connectWithRetry()
       const advice = isPrivateHost
         ? [
             "That is Railway's private network, so the connection string itself is right —",
-            "the name simply never resolved, even after retrying. Usually that means the",
-            "database service is stopped, crashed, or was removed from the project.",
+            "the name simply never resolved, even after retrying. Two things cause this:",
             "",
-            "Open the database service in Railway and confirm it is deployed and running.",
-            "If it is, redeploy this service so it picks the private network up again.",
+            "  1. The database service is not running. Open it in Railway and check that",
+            "     its latest deployment succeeded.",
+            "  2. Private networking is unavailable to this service. It is IPv6-only and",
+            "     has to be enabled for the environment.",
+            "",
+            "To sidestep the private network entirely, point DATABASE_URL at the database's",
+            "public endpoint instead — it routes over the internet and always resolves:",
+            "",
+            "    ${{Postgres.DATABASE_PUBLIC_URL}}",
+            "",
+            "(SSL is negotiated automatically for public hosts.)",
           ]
         : [
             "That host does not exist. If this is a Railway deployment, the app service's",
