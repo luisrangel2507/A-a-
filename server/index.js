@@ -26,6 +26,31 @@ if (!connectionString) {
   process.exit(1);
 }
 
+// An unresolved Railway reference arrives as the literal "${{Service.VAR}}" text.
+// Catch it here: pg-connection-string would otherwise parse that string into the
+// bogus host "base" (the letters inside "DATABASE"), and the resulting DNS error
+// points nowhere near the real problem.
+if (/^\$\{\{.*\}\}$/.test(connectionString.trim())) {
+  console.error(
+    [
+      `DATABASE_URL still holds the literal text ${connectionString.trim()}.`,
+      "",
+      "Railway leaves a variable reference unsubstituted when it cannot resolve it,",
+      "which means the service it names does not exist in this project. Check:",
+      "",
+      "  1. A Postgres database is actually part of this project",
+      "     (New -> Database -> Add PostgreSQL).",
+      "  2. The name inside the reference matches that service exactly, including",
+      "     capitalisation — a database shown as 'postgres' needs",
+      "     ${{postgres.DATABASE_URL}}.",
+      "",
+      "You can sidestep references entirely: open the database service's Variables",
+      "tab and copy its DATABASE_URL value straight into this service.",
+    ].join("\n")
+  );
+  process.exit(1);
+}
+
 // Postgres reached over a loopback or private network speaks plaintext, and
 // forcing SSL there fails with "The server does not support SSL connections".
 // Railway's database lives on *.railway.internal, so it belongs in that group;
@@ -44,6 +69,23 @@ const isPrivateHost =
   dbHost === "::1" ||
   dbHost.endsWith(".internal");
 const sslDisabledInUrl = /[?&]sslmode=disable(&|$)/.test(connectionString);
+
+// Echoed on connection failure so the logs show which value actually arrived —
+// misconfigured deploys are otherwise indistinguishable from network trouble.
+// The password is never printed.
+function describeConnection() {
+  try {
+    const u = new URL(connectionString);
+    const user = u.username ? `${u.username}:***@` : "";
+    return `postgres://${user}${u.hostname}:${u.port || "5432"}${u.pathname}`;
+  } catch {
+    const looksLikeReference = /^\$\{\{.*\}\}$/.test(connectionString.trim());
+    return looksLikeReference
+      ? `${connectionString.trim()}  <- Railway did not substitute this reference; ` +
+          `check that a service with that exact name exists in this project`
+      : `<unparseable value, ${connectionString.length} characters>`;
+  }
+}
 
 const pool = new Pool({
   connectionString,
@@ -127,6 +169,8 @@ ensureSchema()
         [
           `Could not reach Postgres at ${dbHost}:${dbPort} — nothing is listening there.`,
           "",
+          `The server received: ${describeConnection()}`,
+          "",
           "If this is a deployment, DATABASE_URL is pointing at the app's own container",
           "instead of the database. The value from .env.example is a local placeholder;",
           "don't copy it into Railway. Set the app service's variable to a reference:",
@@ -142,6 +186,8 @@ ensureSchema()
       console.error(
         [
           `DATABASE_URL points at the host "${err.hostname || dbHost}", which does not resolve.`,
+          "",
+          `The server received: ${describeConnection()}`,
           "",
           "That usually means the variable still holds placeholder text rather than a",
           "real connection string. On Railway, set the app service's DATABASE_URL to",
