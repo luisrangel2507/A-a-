@@ -159,7 +159,31 @@ app.get("*", (_req, res) => {
 });
 
 const port = process.env.PORT || 4000;
-ensureSchema()
+
+// Railway's private network (*.railway.internal) needs a few seconds after the
+// container starts before its DNS answers, so the first connection attempts can
+// fail with ENOTFOUND on a perfectly good configuration. Retry before giving up
+// — a real misconfiguration still fails, just a little later and with the same
+// diagnostics.
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function connectWithRetry({ attempts = 8, delayMs = 2000 } = {}) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await ensureSchema();
+      return;
+    } catch (err) {
+      const transient = err.code === "ENOTFOUND" || err.code === "ECONNREFUSED";
+      if (!transient || attempt >= attempts) throw err;
+      console.log(
+        `Database not reachable yet (${err.code}), attempt ${attempt}/${attempts} — retrying in ${delayMs / 1000}s…`
+      );
+      await sleep(delayMs);
+    }
+  }
+}
+
+connectWithRetry()
   .then(() => {
     app.listen(port, () => console.log(`Açaí Control server listening on :${port}`));
   })
@@ -183,20 +207,32 @@ ensureSchema()
       process.exit(1);
     }
     if (err.code === "ENOTFOUND") {
+      const host = err.hostname || dbHost;
+      const advice = isPrivateHost
+        ? [
+            "That is Railway's private network, so the connection string itself is right —",
+            "the name simply never resolved, even after retrying. Usually that means the",
+            "database service is stopped, crashed, or was removed from the project.",
+            "",
+            "Open the database service in Railway and confirm it is deployed and running.",
+            "If it is, redeploy this service so it picks the private network up again.",
+          ]
+        : [
+            "That host does not exist. If this is a Railway deployment, the app service's",
+            "DATABASE_URL should be a reference to the database service:",
+            "",
+            "    ${{Postgres.DATABASE_URL}}",
+            "",
+            "Use your database service's name if it is not called 'Postgres', or copy its",
+            "DATABASE_URL value verbatim from that service's Variables tab.",
+          ];
       console.error(
         [
-          `DATABASE_URL points at the host "${err.hostname || dbHost}", which does not resolve.`,
+          `DATABASE_URL points at the host "${host}", which does not resolve.`,
           "",
           `The server received: ${describeConnection()}`,
           "",
-          "That usually means the variable still holds placeholder text rather than a",
-          "real connection string. On Railway, set the app service's DATABASE_URL to",
-          "this exact value, braces included — it is syntax, not an example to fill in:",
-          "",
-          "    ${{Postgres.DATABASE_URL}}",
-          "",
-          "Use your database service's name if it is not called 'Postgres'. Alternatively,",
-          "open the database service's Variables tab and copy its DATABASE_URL value verbatim.",
+          ...advice,
         ].join("\n")
       );
       process.exit(1);
