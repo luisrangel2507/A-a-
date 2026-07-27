@@ -10,8 +10,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
   console.error(
-    "DATABASE_URL is not set. Point it at a Postgres connection string " +
-      "(Railway sets this automatically once you add a Postgres plugin to the project)."
+    [
+      "DATABASE_URL is not set — the server needs a Postgres connection string to start.",
+      "",
+      "On Railway: adding a Postgres database does not hand its URL to this service;",
+      "variables are per-service. Open this service's Variables tab and add:",
+      "",
+      "    DATABASE_URL=${{Postgres.DATABASE_URL}}",
+      "",
+      "(use the database service's name if you renamed it from 'Postgres').",
+      "",
+      "Locally: copy .env.example to .env and point DATABASE_URL at your database.",
+    ].join("\n")
   );
   process.exit(1);
 }

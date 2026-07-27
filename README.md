@@ -36,13 +36,28 @@ requests to the API. To run them separately: `npm run dev:web` and
 
 1. Push this folder to a GitHub repo (or point Railway at it directly).
 2. In Railway: **New Project → Deploy from GitHub repo**.
-3. Add a **Postgres** plugin to the project — Railway injects `DATABASE_URL`
-   into the app service automatically.
-4. Set:
+3. Add a **Postgres** database to the project (**New → Database → Add
+   PostgreSQL**).
+4. Give the app service the connection string. Railway scopes variables to a
+   single service, so the database's `DATABASE_URL` is **not** shared with the
+   app on its own — you have to reference it. In the **app** service open
+   **Variables → New Variable** and add:
+
+   ```
+   DATABASE_URL=${{Postgres.DATABASE_URL}}
+   ```
+
+   (Replace `Postgres` with the database service's name if you renamed it.)
+   Skipping this step is what produces `DATABASE_URL is not set` in the deploy
+   logs.
+5. Set:
    - **Build command**: `npm install && npm run build`
    - **Start command**: `npm start`
-5. Railway sets `PORT` automatically — `server/index.js` already reads it,
+6. Railway sets `PORT` automatically — `server/index.js` already reads it,
    so no extra config is needed.
+
+Once it's up, `https://<your-app>.up.railway.app/api/health` returns
+`{"ok":true}` when the server can reach the database.
 
 `npm start` runs `server/index.js`, which serves both the API and the
 built frontend (`dist/`) on the same port — one service, no CORS.
