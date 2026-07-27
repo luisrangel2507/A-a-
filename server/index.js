@@ -87,10 +87,26 @@ function describeConnection() {
   }
 }
 
-const pool = new Pool({
-  connectionString,
-  ssl: isPrivateHost || sslDisabledInUrl ? false : { rejectUnauthorized: false },
-});
+// SSL can't be decided from the hostname alone: Railway's own Postgres answers
+// its public TCP proxy without SSL, while managed hosts like Neon require it.
+// Start with the likely setting and let the handshake correct it.
+function createPool(useSsl) {
+  return new Pool({
+    connectionString,
+    ssl: useSsl ? { rejectUnauthorized: false } : false,
+  });
+}
+
+let usingSsl = !(isPrivateHost || sslDisabledInUrl);
+let pool = createPool(usingSsl);
+
+// Postgres reports an SSL mismatch clearly, in both directions.
+function sslMismatch(err) {
+  const msg = String(err && err.message);
+  if (usingSsl && /does not support SSL/i.test(msg)) return "off";
+  if (!usingSsl && /(SSL|encryption) (is )?required|no encryption/i.test(msg)) return "on";
+  return null;
+}
 
 async function ensureSchema() {
   await pool.query(`
@@ -168,11 +184,21 @@ const port = process.env.PORT || 4000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function connectWithRetry({ attempts = 8, delayMs = 2000 } = {}) {
+  let sslFlips = 0;
   for (let attempt = 1; ; attempt++) {
     try {
       await ensureSchema();
       return;
     } catch (err) {
+      const flip = sslFlips < 1 ? sslMismatch(err) : null;
+      if (flip) {
+        sslFlips++;
+        usingSsl = flip === "on";
+        console.log(`Server wants SSL ${flip} — reconnecting with SSL ${flip}.`);
+        await pool.end().catch(() => {});
+        pool = createPool(usingSsl);
+        continue;
+      }
       const transient = err.code === "ENOTFOUND" || err.code === "ECONNREFUSED";
       if (!transient || attempt >= attempts) throw err;
       console.log(
