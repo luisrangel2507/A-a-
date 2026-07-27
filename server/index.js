@@ -108,6 +108,18 @@ function sslMismatch(err) {
   return null;
 }
 
+// A dropped handshake says nothing about its cause: a TCP proxy in front of the
+// database, an SSL mismatch it swallowed, or an instance still waking up all look
+// the same. Worth one attempt with the opposite SSL setting before retrying.
+function handshakeDropped(err) {
+  return (
+    /Connection terminated unexpectedly/i.test(String(err && err.message)) ||
+    err.code === "ECONNRESET" ||
+    err.code === "EPIPE" ||
+    err.code === "ETIMEDOUT"
+  );
+}
+
 async function ensureSchema() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS kv_store (
@@ -190,16 +202,21 @@ async function connectWithRetry({ attempts = 8, delayMs = 2000 } = {}) {
       await ensureSchema();
       return;
     } catch (err) {
-      const flip = sslFlips < 1 ? sslMismatch(err) : null;
+      let flip = sslFlips < 1 ? sslMismatch(err) : null;
+      if (!flip && sslFlips < 1 && handshakeDropped(err)) {
+        flip = usingSsl ? "off" : "on";
+        console.log(`Handshake dropped (${err.message}) — trying SSL ${flip}.`);
+      }
       if (flip) {
         sslFlips++;
         usingSsl = flip === "on";
-        console.log(`Server wants SSL ${flip} — reconnecting with SSL ${flip}.`);
+        console.log(`Reconnecting with SSL ${flip}.`);
         await pool.end().catch(() => {});
         pool = createPool(usingSsl);
         continue;
       }
-      const transient = err.code === "ENOTFOUND" || err.code === "ECONNREFUSED";
+      const transient =
+        err.code === "ENOTFOUND" || err.code === "ECONNREFUSED" || handshakeDropped(err);
       if (!transient || attempt >= attempts) throw err;
       console.log(
         `Database not reachable yet (${err.code}), attempt ${attempt}/${attempts} — retrying in ${delayMs / 1000}s…`
@@ -209,6 +226,7 @@ async function connectWithRetry({ attempts = 8, delayMs = 2000 } = {}) {
   }
 }
 
+console.log(`Connecting to ${dbHost}:${dbPort} (SSL ${usingSsl ? "on" : "off"})…`);
 connectWithRetry()
   .then(() => {
     app.listen(port, () => console.log(`Açaí Control server listening on :${port}`));
