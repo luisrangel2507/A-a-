@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Prepare a photo for the app: square, centred, compressed, correctly named.
+"""Prepare a photo for the app: square, centered, compressed, correctly named.
 
-    python3 scripts/add-photo.py <archivo> toppings oreo
-    python3 scripts/add-photo.py <archivo> bowls coconut
-    python3 scripts/add-photo.py <archivo> flavors matcha
+    python3 scripts/add-photo.py <file> toppings oreo
+    python3 scripts/add-photo.py <file> bowls coconut
+    python3 scripts/add-photo.py <file> flavors matcha
 
 The id is checked against the menu in src/App.jsx, because a typo would not
 fail — it would just quietly produce a file the app never looks at.
@@ -17,7 +17,7 @@ from pathlib import Path
 try:
     from PIL import Image
 except ImportError:
-    sys.exit("Falta Pillow. Instálalo con:  pip install pillow")
+    sys.exit("Pillow is missing. Install it with:  pip install pillow")
 
 ROOT = Path(__file__).resolve().parent.parent
 APP = ROOT / "src" / "App.jsx"
@@ -39,13 +39,13 @@ def main():
     source, kind, ident = sys.argv[1], sys.argv[2], sys.argv[3]
 
     if kind not in SIZES:
-        sys.exit(f"Carpeta desconocida: {kind}. Usa una de: {', '.join(SIZES)}")
+        sys.exit(f"Unknown folder: {kind}. Use one of: {', '.join(SIZES)}")
 
     valid = menu_ids()[kind]
     if ident not in valid:
         sys.exit(
-            f"'{ident}' no está en el menú.\n"
-            f"Ids válidos para {kind}:\n  " + "\n  ".join(valid)
+            f"'{ident}' is not on the menu.\n"
+            f"Valid ids for {kind}:\n  " + "\n  ".join(valid)
         )
 
     im = Image.open(source)

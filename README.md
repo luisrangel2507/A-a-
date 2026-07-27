@@ -93,12 +93,12 @@ are not readable by anyone who finds the URL.
 
   | | Sales | Inventory | Reports | Staff accounts |
   |---|---|---|---|---|
-  | **Dueño** (owner) | ✅ | ✅ | ✅ | ✅ |
-  | **Gerente** (manager) | ✅ | ✅ | ✅ | — |
-  | **Empleado** (employee) | ✅ | — | ✅ | — |
+  | **Owner** | ✅ | ✅ | ✅ | ✅ |
+  | **Manager** | ✅ | ✅ | ✅ | — |
+  | **Staff** | ✅ | — | ✅ | — |
 
   The owner account is created once by first-run setup; the Team screen hands
-  out manager and employee, and the API refuses any other role.
+  out Manager and Staff, and the API refuses any other role.
 - **Staff.** The owner adds them under **Team**, each with their own username
   and password. Every sale records who rang it up, and Reports breaks the day's
   takings down per person.
@@ -122,23 +122,23 @@ Both close the same way: move sales and inventory out of the blob into their own
 tables and endpoints. Worth doing if these ever need to settle a dispute rather
 than keep honest people out of the wrong screen.
 
-## Flavour and topping photos
+## Flavor and topping photos
 
 `src/assets/flavors/` and `src/assets/toppings/` are picked up by filename: drop
-`mango_cream.jpg` into the flavours folder and that flavour starts showing it —
+`mango_cream.jpg` into the flavors folder and that flavor starts showing it —
 in the picker, and as the scoop inside the bowl. Toppings work the same way and
 show up both in the chips and on the açaí.
 
-`src/assets/IMAGENES.md` lists the exact filename each of the 9 flavours and 28
+`src/assets/PHOTOS.md` lists the exact filename each of the 9 flavors and 28
 toppings expects. Accepted: `.jpg`, `.jpeg`, `.png`, `.webp`, `.avif`; square
 images look best.
 
 `src/assets/bowls/` is the one to start with, and takes priority over the other
-two. It holds a photo of each flavour's **base bowl** — that flavour made up with
+two. It holds a photo of each flavor's **base bowl** — that flavor made up with
 the four free toppings and nothing else. It is not a finished dish; it is where
 most orders start.
 
-**The bowl only ever shows real photos.** A flavour without one leaves the bowl
+**The bowl only ever shows real photos.** A flavor without one leaves the bowl
 empty, and a topping without one adds nothing to it — nothing stands in for food
 that has not been photographed, so the preview is never a guess at what the
 customer will get.
@@ -150,7 +150,7 @@ whole order. Removing one of the free toppings drops the base photo entirely,
 since it would be showing food the customer is not getting.
 
 Photos can therefore be added a few at a time: each one that lands starts
-appearing on its own. The coloured dots beside topping names in the picker are
+appearing on its own. The colored dots beside topping names in the picker are
 unaffected; those are list markers, not a picture of the dish.
 
 ## How the shared backend works

@@ -1,7 +1,7 @@
 {
   "name": "Quick Açaí",
   "short_name": "Quick Açaí",
-  "description": "Caja, inventario y reportes del local.",
+  "description": "Register, inventory and reports for the shop.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

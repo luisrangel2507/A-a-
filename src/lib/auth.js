@@ -78,21 +78,22 @@ const auth = {
   },
 };
 
-// Spanish-language messages for the errors the server reports by code.
+// What each error code the server reports means, in plain words.
 export const AUTH_ERRORS = {
-  bad_credentials: "Usuario o contraseña incorrectos.",
-  username_taken: "Ese usuario ya existe.",
-  username_invalid: "El usuario debe tener 3 a 32 caracteres: letras, números, punto, guion o guion bajo.",
-  password_too_short: "La contraseña debe tener al menos 6 caracteres.",
-  name_required: "Escribe el nombre de la persona.",
-  already_set_up: "Ya existe una cuenta. Inicia sesión.",
-  cannot_deactivate_self: "No puedes desactivar tu propia cuenta.",
-  role_invalid: "Elige Empleado o Gerente.",
-  owner_only: "Solo el dueño puede hacer esto.",
-  unauthenticated: "Tu sesión expiró. Inicia sesión otra vez.",
+  bad_credentials: "Wrong username or password.",
+  username_taken: "That username is taken.",
+  username_invalid:
+    "Usernames are 3 to 32 characters: letters, numbers, dot, dash or underscore.",
+  password_too_short: "Passwords need at least 6 characters.",
+  name_required: "Enter the person's name.",
+  already_set_up: "An account already exists. Sign in instead.",
+  cannot_deactivate_self: "You can't remove your own account.",
+  role_invalid: "Pick Staff or Manager.",
+  owner_only: "Only the owner can do this.",
+  unauthenticated: "Your session expired. Sign in again.",
 };
 
 export const authMessage = (err) =>
-  AUTH_ERRORS[err && err.message] || "Algo falló. Inténtalo de nuevo.";
+  AUTH_ERRORS[err && err.message] || "Something went wrong. Try again.";
 
 export default auth;

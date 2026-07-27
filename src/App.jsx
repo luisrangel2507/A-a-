@@ -27,7 +27,7 @@ import bowlImage from "./assets/bowl.jpg";
 
 // Photos are picked up from the filesystem by name: drop mango_cream.jpg into
 // assets/flavors/ and that flavour starts showing it, with no code change.
-// See assets/IMAGENES.md for the filename each flavour and topping expects.
+// See assets/PHOTOS.md for the filename each flavour and topping expects.
 // Anything without a photo keeps using its colour, so they can be added one at a time.
 const byFileName = (modules) =>
   Object.fromEntries(
@@ -308,12 +308,12 @@ function BowlPreview({ productId, toppingIds, includedToppingIds = [], toppings,
   // The scoop sits a little inside the cavity, leaving a rim of ceramic visible.
   const fillR = BOWL_INTERIOR.r * 0.88;
   const shown = [
-    ...(useBasePhoto ? ["lo incluido"] : showScoop ? ["el sabor"] : []),
+    ...(useBasePhoto ? ["what's included"] : showScoop ? ["the flavor"] : []),
     ...active.map((t) => t.name),
   ];
   const label =
-    (shown.length === 0 ? "Plato vacío" : `Plato con ${shown.join(", ")}`) +
-    (missing.length > 0 ? `. Sin foto todavía: ${missing.map((t) => t.name).join(", ")}` : "");
+    (shown.length === 0 ? "Empty bowl" : `Bowl with ${shown.join(", ")}`) +
+    (missing.length > 0 ? `. Not pictured yet: ${missing.map((t) => t.name).join(", ")}` : "");
 
   return (
     <div
@@ -514,7 +514,7 @@ export default function AcaiControlApp() {
     try {
       await storage.set(STORAGE_SHOP, JSON.stringify({ ingredients: nextIngredients, sales: nextSales }));
     } catch (e) {
-      handleStorageError(e, "No se pudo guardar. Inténtalo de nuevo.");
+      handleStorageError(e, "Couldn't save. Try again.");
     }
   }
 
@@ -708,7 +708,7 @@ export default function AcaiControlApp() {
       <div className="min-h-screen flex items-center justify-center" style={{ background: COLOR.bg }}>
         {typography}
         <div style={{ color: COLOR.acai }} className="text-sm font-medium">
-          Cargando…
+          Loading…
         </div>
       </div>
     );
@@ -728,7 +728,7 @@ export default function AcaiControlApp() {
       <div className="min-h-screen flex items-center justify-center" style={{ background: COLOR.bg }}>
         {typography}
         <div style={{ color: COLOR.acai }} className="text-sm font-medium">
-          Cargando…
+          Loading…
         </div>
       </div>
     );

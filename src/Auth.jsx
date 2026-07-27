@@ -96,10 +96,10 @@ export function SignInScreen({ onSignedIn }) {
         />
         <p className="mt-3 text-center text-sm" style={{ color: COLOR.inkSoft }}>
           {mode === null
-            ? "Cargando…"
+            ? "Loading…"
             : setup
-            ? "Crea la cuenta del dueño para empezar."
-            : "Inicia sesión para abrir la caja."}
+            ? "Create the owner account to get started."
+            : "Sign in to open the register."}
         </p>
 
         {mode !== null && (
@@ -110,31 +110,31 @@ export function SignInScreen({ onSignedIn }) {
           >
             {setup && (
               <Field
-                label="Nombre de la persona"
+                label="Full name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 autoComplete="name"
-                placeholder="Luis Rangel"
+                placeholder="Alex Rivera"
                 required
               />
             )}
             <Field
-              label="Usuario"
+              label="Username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
               autoCapitalize="none"
               spellCheck={false}
-              placeholder="luis"
+              placeholder="alex"
               required
             />
             <Field
-              label="Contraseña"
+              label="Password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete={setup ? "new-password" : "current-password"}
-              hint={setup ? "Mínimo 6 caracteres." : undefined}
+              hint={setup ? "At least 6 characters." : undefined}
               required
             />
 
@@ -146,7 +146,7 @@ export function SignInScreen({ onSignedIn }) {
               className="w-full rounded-xl py-3 text-base font-semibold"
               style={{ background: COLOR.acai, color: "#fff", opacity: busy ? 0.7 : 1 }}
             >
-              {busy ? "Un momento…" : setup ? "Crear cuenta y entrar" : "Entrar"}
+              {busy ? "One moment…" : setup ? "Create account and enter" : "Sign in"}
             </button>
           </form>
         )}
@@ -187,7 +187,7 @@ export function TeamPanel({ me, onSignOut }) {
     setError(null);
     try {
       await auth.createUser(draft);
-      setNote(`${roleLabel(draft.role)} agregado.`);
+      setNote(`${roleLabel(draft.role)} added.`);
       setDraft({ name: "", username: "", password: "", role: "employee" });
       setAdding(false);
       refresh();
@@ -200,7 +200,7 @@ export function TeamPanel({ me, onSignOut }) {
     setError(null);
     try {
       await auth.deactivateUser(u.id);
-      setNote(`${u.name} ya no tiene acceso.`);
+      setNote(`${u.name} no longer has access.`);
       refresh();
     } catch (err) {
       setError(authMessage(err));
@@ -212,7 +212,7 @@ export function TeamPanel({ me, onSignOut }) {
     setError(null);
     try {
       await auth.setPassword(resetFor.id, resetPassword);
-      setNote(`Contraseña de ${resetFor.name} actualizada.`);
+      setNote(`${resetFor.name}'s password updated.`);
       setResetFor(null);
       setResetPassword("");
     } catch (err) {
@@ -227,7 +227,7 @@ export function TeamPanel({ me, onSignOut }) {
         style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}
       >
         <p className="text-sm" style={{ color: COLOR.inkSoft }}>
-          Sesión de
+          Signed in as
         </p>
         <p className="text-lg font-semibold" style={{ color: COLOR.ink }}>
           {me.name}
@@ -240,13 +240,13 @@ export function TeamPanel({ me, onSignOut }) {
           className="mt-3 flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold"
           style={{ background: COLOR.acaiPale, color: COLOR.acai }}
         >
-          <LogOut size={15} /> Cerrar sesión
+          <LogOut size={15} /> Sign out
         </button>
       </div>
 
       {!isOwner && (
         <p className="px-1 text-sm" style={{ color: COLOR.inkSoft }}>
-          Solo el dueño puede administrar las cuentas del personal.
+          Only the owner can manage staff accounts.
         </p>
       )}
 
@@ -264,7 +264,7 @@ export function TeamPanel({ me, onSignOut }) {
 
           {users === null ? (
             <p className="px-1 text-sm" style={{ color: COLOR.inkSoft }}>
-              Cargando empleados…
+              Loading staff…
             </p>
           ) : (
             users.map((u) => (
@@ -284,7 +284,7 @@ export function TeamPanel({ me, onSignOut }) {
                     </p>
                     <p className="text-sm" style={{ color: COLOR.inkSoft }}>
                       {u.username} · {roleLabel(u.role)}
-                      {!u.active && " · sin acceso"}
+                      {!u.active && " · no access"}
                     </p>
                   </div>
                   {u.active && (
@@ -294,7 +294,7 @@ export function TeamPanel({ me, onSignOut }) {
                           setResetFor(u);
                           setResetPassword("");
                         }}
-                        aria-label={`Cambiar contraseña de ${u.name}`}
+                        aria-label={`Change ${u.name}'s password`}
                         className="rounded-lg p-2"
                         style={{ background: COLOR.acaiPale, color: COLOR.acai }}
                       >
@@ -303,7 +303,7 @@ export function TeamPanel({ me, onSignOut }) {
                       {u.id !== me.id && (
                         <button
                           onClick={() => deactivate(u)}
-                          aria-label={`Quitar acceso a ${u.name}`}
+                          aria-label={`Remove ${u.name}'s access`}
                           className="rounded-lg p-2"
                           style={{ background: "#FBEAEC", color: COLOR.alert }}
                         >
@@ -317,12 +317,12 @@ export function TeamPanel({ me, onSignOut }) {
                 {resetFor && resetFor.id === u.id && (
                   <form onSubmit={changePassword} className="mt-3 space-y-2">
                     <Field
-                      label="Contraseña nueva"
+                      label="New password"
                       type="password"
                       value={resetPassword}
                       onChange={(e) => setResetPassword(e.target.value)}
                       autoComplete="new-password"
-                      hint="Mínimo 6 caracteres. Cierra las sesiones abiertas de esta persona."
+                      hint="At least 6 characters. Signs this person out everywhere."
                       required
                     />
                     <div className="flex gap-2">
@@ -332,14 +332,14 @@ export function TeamPanel({ me, onSignOut }) {
                         className="px-2 text-sm font-medium"
                         style={{ color: COLOR.inkSoft }}
                       >
-                        Cancelar
+                        Cancel
                       </button>
                       <button
                         type="submit"
                         className="flex-1 rounded-xl py-2.5 text-sm font-semibold"
                         style={{ background: COLOR.kiwi, color: "#fff" }}
                       >
-                        Guardar
+                        Save
                       </button>
                     </div>
                   </form>
@@ -355,12 +355,12 @@ export function TeamPanel({ me, onSignOut }) {
               style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}
             >
               <p className="text-base font-semibold" style={{ color: COLOR.ink }}>
-                Nueva persona
+                New person
               </p>
 
               <fieldset>
                 <legend className="text-sm font-medium" style={{ color: COLOR.inkSoft }}>
-                  Qué puede hacer
+                  What they can do
                 </legend>
                 <div className="mt-1.5 flex gap-2">
                   {ASSIGNABLE_ROLES.map((r) => {
@@ -389,14 +389,14 @@ export function TeamPanel({ me, onSignOut }) {
                 </div>
               </fieldset>
               <Field
-                label="Nombre"
+                label="Full name"
                 value={draft.name}
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                placeholder="María López"
+                placeholder="Maria Lopez"
                 required
               />
               <Field
-                label="Usuario"
+                label="Username"
                 value={draft.username}
                 onChange={(e) => setDraft({ ...draft, username: e.target.value })}
                 autoCapitalize="none"
@@ -405,12 +405,12 @@ export function TeamPanel({ me, onSignOut }) {
                 required
               />
               <Field
-                label="Contraseña"
+                label="Password"
                 type="password"
                 value={draft.password}
                 onChange={(e) => setDraft({ ...draft, password: e.target.value })}
                 autoComplete="new-password"
-                hint="Mínimo 6 caracteres. Dísela a la persona para que entre."
+                hint="At least 6 characters. Give it to them so they can sign in."
                 required
               />
               <div className="flex gap-2">
@@ -420,14 +420,14 @@ export function TeamPanel({ me, onSignOut }) {
                   className="px-2 text-sm font-medium"
                   style={{ color: COLOR.inkSoft }}
                 >
-                  Cancelar
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   className="flex-1 rounded-xl py-3 text-base font-semibold"
                   style={{ background: COLOR.acai, color: "#fff" }}
                 >
-                  Agregar
+                  Add
                 </button>
               </div>
             </form>
@@ -440,7 +440,7 @@ export function TeamPanel({ me, onSignOut }) {
               className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-base font-semibold"
               style={{ background: COLOR.card, border: `1px dashed ${COLOR.line}`, color: COLOR.acai }}
             >
-              <UserPlus size={17} /> Agregar persona
+              <UserPlus size={17} /> Add person
             </button>
           )}
         </>
