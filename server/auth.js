@@ -12,6 +12,12 @@ const SCRYPT = { N: 16384, r: 8, p: 1, keylen: 64 };
 const SESSION_DAYS = 30;
 export const COOKIE = "acai_session";
 
+// owner   — the shop's admin: everything, including staff accounts.
+// manager — runs a shift: inventory as well as the register.
+// employee — the register only.
+export const ROLES = ["owner", "manager", "employee"];
+const normalizeRole = (role) => (ROLES.includes(role) ? role : "employee");
+
 export async function ensureAuthSchema(pool) {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -100,7 +106,7 @@ export async function createUser(pool, { username, name, password, role = "emplo
       `INSERT INTO users (id, username, name, password_hash, role)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING id, username, name, role, active`,
-      [newId(), clean, String(name).trim(), hash, role === "owner" ? "owner" : "employee"]
+      [newId(), clean, String(name).trim(), hash, normalizeRole(role)]
     );
     return rows[0];
   } catch (err) {

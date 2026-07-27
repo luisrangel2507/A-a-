@@ -87,6 +87,7 @@ export const AUTH_ERRORS = {
   name_required: "Escribe el nombre de la persona.",
   already_set_up: "Ya existe una cuenta. Inicia sesión.",
   cannot_deactivate_self: "No puedes desactivar tu propia cuenta.",
+  role_invalid: "Elige Empleado o Gerente.",
   owner_only: "Solo el dueño puede hacer esto.",
   unauthenticated: "Tu sesión expiró. Inicia sesión otra vez.",
 };

@@ -89,20 +89,38 @@ are not readable by anyone who finds the URL.
 - **First run.** With no accounts yet, the app offers to create the owner's
   account instead of showing a login form nobody could answer. Once one exists,
   that screen closes permanently.
-- **Employees.** The owner adds them under **Team**, each with their own
-  username and password. Every sale records who rang it up, and Reports breaks
-  the day's takings down per person.
+- **Roles** (`src/lib/roles.js` is the single source of truth):
+
+  | | Sales | Inventory | Reports | Staff accounts |
+  |---|---|---|---|---|
+  | **Dueño** (owner) | ✅ | ✅ | ✅ | ✅ |
+  | **Gerente** (manager) | ✅ | ✅ | ✅ | — |
+  | **Empleado** (employee) | ✅ | — | ✅ | — |
+
+  The owner account is created once by first-run setup; the Team screen hands
+  out manager and employee, and the API refuses any other role.
+- **Staff.** The owner adds them under **Team**, each with their own username
+  and password. Every sale records who rang it up, and Reports breaks the day's
+  takings down per person.
 - **Removing access** deactivates the account rather than deleting it, so past
   sales keep their attribution, and drops that person's sessions immediately.
 - **Passwords** are stored as scrypt hashes with a per-password salt (see
   `server/auth.js`) — never in plain text. Sessions are random tokens kept in the
   database and sent as an httpOnly cookie, so page scripts cannot read them.
 
-One limitation worth knowing: sales live inside the shop-data JSON blob that the
-browser writes, so the *server* does not enforce the attribution on each sale —
-a signed-in employee could in principle edit it. Making that tamper-proof means
-moving sales into their own table, which is a worthwhile change if attribution
-ever needs to settle a dispute rather than just show who was busy.
+Two limits worth knowing, both from the same cause. Sales *and* stock levels live
+in one shop-data JSON blob that the browser writes, and selling has to decrement
+stock, so at the API level a sale and a manual restock are the same write:
+
+- The **server does not enforce sale attribution** — a signed-in employee could
+  in principle edit whose name is on a sale.
+- The **inventory restriction is in the app, not the API** — the tab is hidden
+  and unreachable for register staff, but `/api/kv` cannot tell a restock from a
+  sale, so it cannot reject one.
+
+Both close the same way: move sales and inventory out of the blob into their own
+tables and endpoints. Worth doing if these ever need to settle a dispute rather
+than keep honest people out of the wrong screen.
 
 ## Flavour and topping photos
 

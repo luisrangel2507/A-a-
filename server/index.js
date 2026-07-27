@@ -304,6 +304,11 @@ app.get("/api/users", requireOwner, async (_req, res, next) => {
 app.post("/api/users", requireOwner, async (req, res, next) => {
   try {
     const { username, name, password, role } = req.body || {};
+    // The owner account is created once, by first-run setup. Staff added here are
+    // managers or register staff, matching what the Team screen offers.
+    if (role && role !== "manager" && role !== "employee") {
+      return res.status(400).json({ error: "role_invalid" });
+    }
     res.json({ user: await createUser(pool, { username, name, password, role }) });
   } catch (err) {
     if (err.status) return res.status(err.status).json({ error: err.message });

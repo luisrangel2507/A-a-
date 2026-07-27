@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { AlertTriangle, KeyRound, LogOut, UserPlus, X } from "lucide-react";
 import auth, { authMessage } from "./lib/auth";
 import { COLOR } from "./theme";
+import { ASSIGNABLE_ROLES, canManageStaff, roleLabel } from "./lib/roles";
 
 function Field({ label, hint, ...props }) {
   return (
@@ -156,12 +157,12 @@ export function TeamPanel({ me, onSignOut }) {
   const [users, setUsers] = useState(null);
   const [error, setError] = useState(null);
   const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState({ name: "", username: "", password: "" });
+  const [draft, setDraft] = useState({ name: "", username: "", password: "", role: "employee" });
   const [resetFor, setResetFor] = useState(null);
   const [resetPassword, setResetPassword] = useState("");
   const [note, setNote] = useState(null);
 
-  const isOwner = me.role === "owner";
+  const isOwner = canManageStaff(me.role);
 
   async function refresh() {
     try {
@@ -179,10 +180,10 @@ export function TeamPanel({ me, onSignOut }) {
     e.preventDefault();
     setError(null);
     try {
-      await auth.createUser({ ...draft, role: "employee" });
-      setDraft({ name: "", username: "", password: "" });
+      await auth.createUser(draft);
+      setNote(`${roleLabel(draft.role)} agregado.`);
+      setDraft({ name: "", username: "", password: "", role: "employee" });
       setAdding(false);
-      setNote("Empleado agregado.");
       refresh();
     } catch (err) {
       setError(authMessage(err));
@@ -226,7 +227,7 @@ export function TeamPanel({ me, onSignOut }) {
           {me.name}
         </p>
         <p className="text-sm" style={{ color: COLOR.inkSoft }}>
-          {me.username} · {me.role === "owner" ? "Dueño" : "Empleado"}
+          {me.username} · {roleLabel(me.role)}
         </p>
         <button
           onClick={onSignOut}
@@ -239,7 +240,7 @@ export function TeamPanel({ me, onSignOut }) {
 
       {!isOwner && (
         <p className="px-1 text-sm" style={{ color: COLOR.inkSoft }}>
-          Solo el dueño puede administrar empleados.
+          Solo el dueño puede administrar las cuentas del personal.
         </p>
       )}
 
@@ -276,7 +277,7 @@ export function TeamPanel({ me, onSignOut }) {
                       {u.name}
                     </p>
                     <p className="text-sm" style={{ color: COLOR.inkSoft }}>
-                      {u.username} · {u.role === "owner" ? "Dueño" : "Empleado"}
+                      {u.username} · {roleLabel(u.role)}
                       {!u.active && " · sin acceso"}
                     </p>
                   </div>
@@ -348,8 +349,39 @@ export function TeamPanel({ me, onSignOut }) {
               style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}
             >
               <p className="text-base font-semibold" style={{ color: COLOR.ink }}>
-                Nuevo empleado
+                Nueva persona
               </p>
+
+              <fieldset>
+                <legend className="text-sm font-medium" style={{ color: COLOR.inkSoft }}>
+                  Qué puede hacer
+                </legend>
+                <div className="mt-1.5 flex gap-2">
+                  {ASSIGNABLE_ROLES.map((r) => {
+                    const on = draft.role === r.value;
+                    return (
+                      <button
+                        key={r.value}
+                        type="button"
+                        onClick={() => setDraft({ ...draft, role: r.value })}
+                        aria-pressed={on}
+                        className="flex-1 rounded-xl border-2 px-3 py-2.5 text-left"
+                        style={{
+                          borderColor: on ? COLOR.acai : COLOR.line,
+                          background: on ? COLOR.acaiPale : "transparent",
+                        }}
+                      >
+                        <span className="block text-sm font-semibold" style={{ color: COLOR.ink }}>
+                          {r.label}
+                        </span>
+                        <span className="block text-xs" style={{ color: COLOR.inkSoft }}>
+                          {r.hint}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
               <Field
                 label="Nombre"
                 value={draft.name}
@@ -402,7 +434,7 @@ export function TeamPanel({ me, onSignOut }) {
               className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-base font-semibold"
               style={{ background: COLOR.card, border: `1px dashed ${COLOR.line}`, color: COLOR.acai }}
             >
-              <UserPlus size={17} /> Agregar empleado
+              <UserPlus size={17} /> Agregar persona
             </button>
           )}
         </>

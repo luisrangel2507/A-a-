@@ -22,6 +22,7 @@ import storage, { SessionExpiredError } from "./lib/storage";
 import auth from "./lib/auth";
 import { COLOR } from "./theme";
 import { SignInScreen, TeamPanel } from "./Auth";
+import { canSeeInventory } from "./lib/roles";
 import bowlImage from "./assets/bowl.jpg";
 
 // Photos are picked up from the filesystem by name: drop mango_cream.jpg into
@@ -378,6 +379,14 @@ export default function AcaiControlApp() {
   useEffect(() => {
     if (me) load();
   }, [me]);
+
+  // Inventory belongs to the admin and whoever is running the shift.
+  const showInventory = canSeeInventory(me?.role);
+
+  // Whoever signs in next may not be allowed on the tab left open by the last person.
+  useEffect(() => {
+    if (tab === "inventario" && !showInventory) setTab("pos");
+  }, [tab, showInventory]);
 
   // A session that lapses mid-shift drops back to the sign-in screen rather than
   // leaving the register looking functional while nothing saves.
@@ -967,7 +976,7 @@ export default function AcaiControlApp() {
           </div>
         )}
 
-        {tab === "inventario" && (
+        {tab === "inventario" && showInventory && (
           <div className="space-y-3">
             {report.lowStock.length > 0 && (
               <div className="rounded-xl p-3 text-sm flex items-start gap-2" style={{ background: "#FBEAEC", color: COLOR.alert }}>
@@ -1116,7 +1125,9 @@ export default function AcaiControlApp() {
       {/* Bottom nav */}
       <div className="fixed bottom-0 left-0 right-0 flex max-w-md mx-auto w-full" style={{ background: COLOR.card, borderTop: `1px solid ${COLOR.line}` }}>
         <TabButton active={tab === "pos"} onClick={() => setTab("pos")} icon={ShoppingBag} label="Sales" />
-        <TabButton active={tab === "inventario"} onClick={() => setTab("inventario")} icon={Package} label="Inventory" />
+        {showInventory && (
+          <TabButton active={tab === "inventario"} onClick={() => setTab("inventario")} icon={Package} label="Inventory" />
+        )}
         <TabButton active={tab === "reportes"} onClick={() => setTab("reportes")} icon={BarChart3} label="Reports" />
         <TabButton active={tab === "equipo"} onClick={() => setTab("equipo")} icon={Users} label="Team" />
       </div>
