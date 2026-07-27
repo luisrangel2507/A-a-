@@ -1,8 +1,9 @@
 # Açaí Control
 
-Point-of-sale, inventory, and reports app for a single açaí bowl location.
-Built with React + Vite + Tailwind. No backend required to run locally —
-data is persisted to the browser's `localStorage` via `src/lib/storage.js`.
+Point-of-sale, inventory, and reports app for an açaí bowl location.
+Built with React + Vite + Tailwind, backed by a small Express + Postgres
+API so every register/tablet pointed at the same deployment shares live
+inventory and sales.
 
 ## Menu
 
@@ -17,46 +18,53 @@ toppings.
 
 ## Local development
 
+Requires a Postgres database. Point `DATABASE_URL` at one — either a local
+instance or a free one (Railway, Neon, etc.):
+
 ```bash
+cp .env.example .env   # then edit DATABASE_URL
 npm install
 npm run dev
 ```
 
-Opens at `http://localhost:5173`.
+`npm run dev` runs the Vite dev server (`http://localhost:5173`) and the
+API server (`http://localhost:4000`) together; Vite proxies `/api/*`
+requests to the API. To run them separately: `npm run dev:web` and
+`npm run dev:api`.
 
 ## Deploying on Railway
 
 1. Push this folder to a GitHub repo (or point Railway at it directly).
 2. In Railway: **New Project → Deploy from GitHub repo**.
-3. Railway will detect the Node app. Set:
+3. Add a **Postgres** plugin to the project — Railway injects `DATABASE_URL`
+   into the app service automatically.
+4. Set:
    - **Build command**: `npm install && npm run build`
-   - **Start command**: `npm run preview`
-4. Railway sets `PORT` automatically — `vite.config.js` and the `preview`
-   script already read it, so no extra config is needed.
+   - **Start command**: `npm start`
+5. Railway sets `PORT` automatically — `server/index.js` already reads it,
+   so no extra config is needed.
 
-That's it for a single-register setup. See "Next steps" below for
-multi-device / multi-register sync.
+`npm start` runs `server/index.js`, which serves both the API and the
+built frontend (`dist/`) on the same port — one service, no CORS.
 
-## Next steps (when you're ready to scale past one register)
+## How the shared backend works
 
-Right now inventory and sales are stored per-browser in `localStorage`,
-which is perfect for one tablet/register but won't sync across two devices.
-When you need that:
-
-1. Add a small API (Railway + Postgres, or reuse your Neon setup from
-   QualityTrack) with two endpoints: `GET/PUT /api/shop-data` and
-   `GET/PUT /api/menu-config`.
-2. Swap the implementation in `src/lib/storage.js` to call that API instead
-   of `localStorage` — the rest of the app (`App.jsx`) doesn't need to
-   change at all, since it only ever calls `storage.get(key)` /
-   `storage.set(key, value)`.
+- `server/index.js` is a small Express app with one generic endpoint,
+  `GET/PUT/DELETE /api/kv/:key`, backed by a `kv_store(key, value)` table
+  in Postgres (created automatically on startup).
+- `src/lib/storage.js` calls that endpoint instead of `localStorage`.
+  `App.jsx` never changed — it only ever calls `storage.get(key)` /
+  `storage.set(key, value)`, so any register/tablet pointed at the same
+  deployment reads and writes the same inventory and sales data.
 
 ## Project structure
 
 ```
+server/
+  index.js         — Express API (Postgres-backed key/value store) + static frontend host
 src/
   App.jsx          — the whole app (POS wizard, inventory, reports)
-  lib/storage.js    — persistence layer (localStorage today, swap for an API later)
+  lib/storage.js    — persistence layer, calls the /api/kv/:key endpoint
   main.jsx          — React entry point
   index.css         — Tailwind entry
 ```

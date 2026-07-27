@@ -1,35 +1,43 @@
-// Simple persistence adapter for standalone deployment.
-//
-// This mirrors the get/set shape used by the Claude.ai artifact `window.storage`
-// API so the rest of the app didn't need to change. Right now it's backed by
-// the browser's localStorage, which is fine for a single-register/single-device
-// setup. When you're ready for multi-device sync (e.g. two tablets sharing
-// live inventory), swap this file for one that calls your own API
-// (Railway + Postgres, Neon, etc.) — the rest of the app only ever calls
-// storage.get(key) / storage.set(key, value) and doesn't care how it's stored.
+// Persistence adapter backed by the server's /api/kv/:key endpoint
+// (see server/index.js), which stores everything in Postgres. This
+// mirrors the get/set/delete shape the app already used for localStorage,
+// so App.jsx only ever calls storage.get(key) / storage.set(key, value)
+// and doesn't care that the data now lives in a shared database instead
+// of the browser — multiple registers/tablets pointed at the same
+// deployment now see the same inventory and sales.
 
 const storage = {
   async get(key) {
-    const raw = window.localStorage.getItem(key);
-    if (raw === null) {
+    const res = await fetch(`/api/kv/${encodeURIComponent(key)}`);
+    if (res.status === 404) {
       throw new Error(`No value found for key: ${key}`);
     }
-    return { key, value: raw, shared: false };
+    if (!res.ok) {
+      throw new Error(`Failed to load ${key}: ${res.status}`);
+    }
+    const data = await res.json();
+    return { key: data.key, value: data.value, shared: true };
   },
 
   async set(key, value) {
-    window.localStorage.setItem(key, value);
-    return { key, value, shared: false };
+    const res = await fetch(`/api/kv/${encodeURIComponent(key)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value }),
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to save ${key}: ${res.status}`);
+    }
+    const data = await res.json();
+    return { key: data.key, value: data.value, shared: true };
   },
 
   async delete(key) {
-    window.localStorage.removeItem(key);
-    return { key, deleted: true, shared: false };
-  },
-
-  async list(prefix = "") {
-    const keys = Object.keys(window.localStorage).filter((k) => k.startsWith(prefix));
-    return { keys, prefix, shared: false };
+    const res = await fetch(`/api/kv/${encodeURIComponent(key)}`, { method: "DELETE" });
+    if (!res.ok) {
+      throw new Error(`Failed to delete ${key}: ${res.status}`);
+    }
+    return { key, deleted: true, shared: true };
   },
 };
 
