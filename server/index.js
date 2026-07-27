@@ -448,7 +448,7 @@ console.log(`Connecting to ${dbHost}:${dbPort} (SSL ${usingSsl ? "on" : "off"})�
 connectWithRetry()
   .then(async () => {
     await pruneExpiredSessions(pool).catch(() => {});
-    app.listen(port, () => console.log(`Açaí Control server listening on :${port}`));
+    app.listen(port, () => console.log(`Quick Açaí server listening on :${port}`));
   })
   .catch((err) => {
     if (err.code === "ECONNREFUSED" && isPrivateHost && dbHost !== "") {

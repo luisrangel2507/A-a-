@@ -741,7 +741,7 @@ export default function AcaiControlApp() {
       {/* Header */}
       <div className="px-5 pt-6 pb-4 relative" style={{ background: COLOR.acai }}>
         <h1 className="font-display text-2xl" style={{ color: "#F7ECF3" }}>
-          Açaí Control
+          Quick Açaí
         </h1>
         <p className="text-sm mt-0.5" style={{ color: "#D9B9CC" }}>
           {new Date().toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long" })}

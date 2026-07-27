@@ -86,7 +86,7 @@ export function SignInScreen({ onSignedIn }) {
     >
       <div className="w-full" style={{ maxWidth: 380 }}>
         <h1 className="font-display text-3xl" style={{ color: COLOR.acai }}>
-          Açaí Control
+          Quick Açaí
         </h1>
         <p className="mt-1 text-sm" style={{ color: COLOR.inkSoft }}>
           {mode === null

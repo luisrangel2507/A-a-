@@ -1,4 +1,4 @@
-# Açaí Control
+# Quick Açaí
 
 Point-of-sale, inventory, and reports app for an açaí bowl location.
 Built with React + Vite + Tailwind, backed by a small Express + Postgres
