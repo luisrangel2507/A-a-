@@ -112,9 +112,15 @@ in the picker, and as the scoop inside the bowl. Toppings work the same way and
 show up both in the chips and on the açaí.
 
 `src/assets/IMAGENES.md` lists the exact filename each of the 9 flavours and 28
-toppings expects. Anything without a photo keeps using its colour, so they can be
-added a few at a time. Accepted: `.jpg`, `.jpeg`, `.png`, `.webp`, `.avif`;
-square images look best.
+toppings expects. Accepted: `.jpg`, `.jpeg`, `.png`, `.webp`, `.avif`; square
+images look best.
+
+**The bowl only ever shows real photos.** A flavour without one leaves the bowl
+empty, and a topping without one adds nothing to it — nothing stands in for food
+that has not been photographed, so the preview is never a guess at what the
+customer will get. Photos can therefore be added a few at a time: each one that
+lands starts appearing on its own. The coloured dots beside topping names in the
+picker are unaffected; those are list markers, not a picture of the dish.
 
 ## How the shared backend works
 

@@ -260,24 +260,25 @@ function ProgressSteps({ step, onJump }) {
 const BOWL_INTERIOR = { cx: 0.5074, cy: 0.4853, r: 0.3824 };
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
-function BowlPreview({ baseColor, productId, toppingIds, toppings, ingredients }) {
+function BowlPreview({ productId, toppingIds, toppings, ingredients }) {
+  // Only real photos go in the bowl. An option without one contributes nothing —
+  // no stand-in colour standing where the food should be, so what the preview
+  // shows is always the actual product.
   const active = toppingIds
     .map((id) => toppings.find((t) => t.id === id))
-    .filter(Boolean)
-    .map((t) => {
-      const ing = ingredients.find((i) => i.id === t.ingredientId);
-      return ing ? { ...ing, photo: TOPPING_PHOTOS[t.id] } : null;
-    })
-    .filter(Boolean);
+    .filter((t) => t && TOPPING_PHOTOS[t.id])
+    .map((t) => ({
+      id: t.id,
+      name: ingredients.find((i) => i.id === t.ingredientId)?.name || t.name,
+      photo: TOPPING_PHOTOS[t.id],
+    }));
 
   const flavorPhoto = productId ? FLAVOR_PHOTOS[productId] : null;
 
-  // The açaí sits a little inside the cavity, leaving a rim of ceramic visible.
+  // The scoop sits a little inside the cavity, leaving a rim of ceramic visible.
   const fillR = BOWL_INTERIOR.r * 0.88;
-  const label =
-    active.length === 0
-      ? "an empty bowl"
-      : `a bowl with ${active.map((i) => i.name).join(", ")}`;
+  const shown = [...(flavorPhoto ? ["el sabor"] : []), ...active.map((t) => t.name)];
+  const label = shown.length === 0 ? "Plato vacío" : `Plato con ${shown.join(", ")}`;
 
   return (
     <div
@@ -292,50 +293,44 @@ function BowlPreview({ baseColor, productId, toppingIds, toppings, ingredients }
         className="absolute inset-0 h-full w-full rounded-2xl object-cover"
       />
 
-      {/* The scoop of açaí: a photo of the flavour once there is one, otherwise its
-          colour, lit from the upper left with the bowl's shadow across its top edge. */}
-      <div
-        className="absolute overflow-hidden rounded-full"
-        style={{
-          left: `${(BOWL_INTERIOR.cx - fillR) * 100}%`,
-          top: `${(BOWL_INTERIOR.cy - fillR) * 100}%`,
-          width: `${fillR * 200}%`,
-          height: `${fillR * 200}%`,
-          background: flavorPhoto
-            ? baseColor
-            : `radial-gradient(circle at 36% 30%, ${baseColor}, ${baseColor}e6 62%, ${baseColor}bf 100%)`,
-          boxShadow: `inset 0 8px 18px rgba(0,0,0,0.32), 0 2px 10px rgba(58,22,48,0.28)`,
-        }}
-      >
-        {flavorPhoto && (
+      {/* The scoop, once there is a photo of this flavour. */}
+      {flavorPhoto && (
+        <div
+          className="absolute overflow-hidden rounded-full"
+          style={{
+            left: `${(BOWL_INTERIOR.cx - fillR) * 100}%`,
+            top: `${(BOWL_INTERIOR.cy - fillR) * 100}%`,
+            width: `${fillR * 200}%`,
+            height: `${fillR * 200}%`,
+            boxShadow: `inset 0 8px 18px rgba(0,0,0,0.32), 0 2px 10px rgba(58,22,48,0.28)`,
+          }}
+        >
           <img src={flavorPhoto} alt="" className="h-full w-full object-cover" />
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Toppings scattered across the açaí on a sunflower spiral, so any number
-          spreads evenly instead of bunching into a ring. */}
-      {active.map((ing, idx) => {
+      {/* Toppings that have a photo, on a sunflower spiral so any number spreads
+          evenly instead of bunching into a ring. */}
+      {active.map((t, idx) => {
         const angle = idx * GOLDEN_ANGLE;
         const rad = fillR * 0.76 * Math.sqrt((idx + 0.5) / active.length);
         const x = BOWL_INTERIOR.cx + rad * Math.cos(angle);
         const y = BOWL_INTERIOR.cy + rad * Math.sin(angle);
         return (
           <div
-            key={ing.id + idx}
-            title={ing.name}
+            key={t.id}
+            title={t.name}
             className="absolute overflow-hidden rounded-full"
             style={{
               left: `${x * 100}%`,
               top: `${y * 100}%`,
-              width: "8%",
-              height: "8%",
+              width: "13%",
+              height: "13%",
               transform: "translate(-50%, -50%)",
-              background: ing.color,
-              border: "1.5px solid rgba(255,255,255,0.82)",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.42)",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.42)",
             }}
           >
-            {ing.photo && <img src={ing.photo} alt="" className="h-full w-full object-cover" />}
+            <img src={t.photo} alt="" className="h-full w-full object-cover" />
           </div>
         );
       })}
@@ -717,7 +712,6 @@ export default function AcaiControlApp() {
           <div className="space-y-4">
             <div className="rounded-2xl p-4" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
               <BowlPreview
-                baseColor={currentProduct?.color || COLOR.acai}
                 productId={currentProduct?.id}
                 toppingIds={builder.toppingIds}
                 toppings={menu.toppings}
