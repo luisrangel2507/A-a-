@@ -138,6 +138,23 @@ ensureSchema()
       );
       process.exit(1);
     }
+    if (err.code === "ENOTFOUND") {
+      console.error(
+        [
+          `DATABASE_URL points at the host "${err.hostname || dbHost}", which does not resolve.`,
+          "",
+          "That usually means the variable still holds placeholder text rather than a",
+          "real connection string. On Railway, set the app service's DATABASE_URL to",
+          "this exact value, braces included — it is syntax, not an example to fill in:",
+          "",
+          "    ${{Postgres.DATABASE_URL}}",
+          "",
+          "Use your database service's name if it is not called 'Postgres'. Alternatively,",
+          "open the database service's Variables tab and copy its DATABASE_URL value verbatim.",
+        ].join("\n")
+      );
+      process.exit(1);
+    }
     console.error("Failed to initialize database schema:", err);
     process.exit(1);
   });
