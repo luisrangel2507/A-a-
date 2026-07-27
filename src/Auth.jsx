@@ -3,6 +3,7 @@ import { AlertTriangle, KeyRound, LogOut, UserPlus, X } from "lucide-react";
 import auth, { authMessage } from "./lib/auth";
 import { COLOR } from "./theme";
 import { ASSIGNABLE_ROLES, canManageStaff, roleLabel } from "./lib/roles";
+import logo from "./assets/logo.png";
 
 function Field({ label, hint, ...props }) {
   return (
@@ -85,10 +86,15 @@ export function SignInScreen({ onSignedIn }) {
       style={{ background: COLOR.bg, fontFamily: "'Space Grotesk', sans-serif" }}
     >
       <div className="w-full" style={{ maxWidth: 380 }}>
-        <h1 className="font-display text-3xl" style={{ color: COLOR.acai }}>
-          Quick Açaí
-        </h1>
-        <p className="mt-1 text-sm" style={{ color: COLOR.inkSoft }}>
+        {/* The sign-in screen is the one place with room for the full lockup —
+            the app icon has to drop the wordmark to stay legible. */}
+        <img
+          src={logo}
+          alt="Quick Açaí"
+          className="mx-auto block"
+          style={{ width: 148, height: "auto" }}
+        />
+        <p className="mt-3 text-center text-sm" style={{ color: COLOR.inkSoft }}>
           {mode === null
             ? "Cargando…"
             : setup
