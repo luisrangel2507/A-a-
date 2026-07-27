@@ -6,9 +6,21 @@
 // of the browser — multiple registers/tablets pointed at the same
 // deployment now see the same inventory and sales.
 
+// A 401 means the session is gone, which the app has to handle by sending the
+// person back to the sign-in screen — it is not the same as a failed save.
+export class SessionExpiredError extends Error {
+  constructor() {
+    super("unauthenticated");
+    this.name = "SessionExpiredError";
+  }
+}
+
 const storage = {
   async get(key) {
-    const res = await fetch(`/api/kv/${encodeURIComponent(key)}`);
+    const res = await fetch(`/api/kv/${encodeURIComponent(key)}`, {
+      credentials: "same-origin",
+    });
+    if (res.status === 401) throw new SessionExpiredError();
     if (res.status === 404) {
       throw new Error(`No value found for key: ${key}`);
     }
@@ -22,9 +34,11 @@ const storage = {
   async set(key, value) {
     const res = await fetch(`/api/kv/${encodeURIComponent(key)}`, {
       method: "PUT",
+      credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ value }),
     });
+    if (res.status === 401) throw new SessionExpiredError();
     if (!res.ok) {
       throw new Error(`Failed to save ${key}: ${res.status}`);
     }
@@ -33,7 +47,11 @@ const storage = {
   },
 
   async delete(key) {
-    const res = await fetch(`/api/kv/${encodeURIComponent(key)}`, { method: "DELETE" });
+    const res = await fetch(`/api/kv/${encodeURIComponent(key)}`, {
+      method: "DELETE",
+      credentials: "same-origin",
+    });
+    if (res.status === 401) throw new SessionExpiredError();
     if (!res.ok) {
       throw new Error(`Failed to delete ${key}: ${res.status}`);
     }

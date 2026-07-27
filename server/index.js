@@ -3,6 +3,20 @@ import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
+import {
+  COOKIE,
+  countUsers,
+  createUser,
+  deactivateUser,
+  ensureAuthSchema,
+  listUsers,
+  login,
+  logout,
+  parseCookies,
+  pruneExpiredSessions,
+  setPassword,
+  userForToken,
+} from "./auth.js";
 
 const { Pool } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -164,14 +178,167 @@ async function ensureSchema() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  await ensureAuthSchema(pool);
 }
 
 const app = express();
 app.use(express.json({ limit: "2mb" }));
 
+// Railway and other proxies terminate TLS upstream; without this the secure
+// cookie below would never be set, because express would see plain http.
+app.set("trust proxy", 1);
+const cookieSecure = process.env.NODE_ENV === "production";
+
+function sessionCookie(res, token, expires) {
+  res.setHeader(
+    "Set-Cookie",
+    [
+      `${COOKIE}=${encodeURIComponent(token)}`,
+      `Path=/`,
+      `Expires=${expires.toUTCString()}`,
+      `HttpOnly`,
+      `SameSite=Lax`,
+      cookieSecure ? "Secure" : "",
+    ]
+      .filter(Boolean)
+      .join("; ")
+  );
+}
+
+function clearSessionCookie(res) {
+  res.setHeader(
+    "Set-Cookie",
+    `${COOKIE}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax${
+      cookieSecure ? "; Secure" : ""
+    }`
+  );
+}
+
+const tokenFrom = (req) => parseCookies(req.headers.cookie)[COOKIE];
+
+// Every request carries whoever the session belongs to, or nobody.
+async function attachUser(req, _res, next) {
+  try {
+    req.user = await userForToken(pool, tokenFrom(req));
+    next();
+  } catch (err) {
+    next(err);
+  }
+}
+
+function requireUser(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: "unauthenticated" });
+  next();
+}
+
+function requireOwner(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: "unauthenticated" });
+  if (req.user.role !== "owner") return res.status(403).json({ error: "owner_only" });
+  next();
+}
+
+app.use("/api", attachUser);
+
+// Before any account exists the app has nothing to authenticate against, so it
+// offers to create the owner. Once one exists this closes for good.
+app.get("/api/auth/state", async (_req, res, next) => {
+  try {
+    res.json({ needsSetup: (await countUsers(pool)) === 0 });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/auth/setup", async (req, res, next) => {
+  try {
+    if ((await countUsers(pool)) > 0) {
+      return res.status(409).json({ error: "already_set_up" });
+    }
+    const { username, name, password } = req.body || {};
+    await createUser(pool, { username, name, password, role: "owner" });
+    const session = await login(pool, username, password);
+    sessionCookie(res, session.token, session.expires);
+    res.json({ user: session.user });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
+app.post("/api/auth/login", async (req, res, next) => {
+  try {
+    const { username, password } = req.body || {};
+    const session = await login(pool, username, password);
+    if (!session) return res.status(401).json({ error: "bad_credentials" });
+    sessionCookie(res, session.token, session.expires);
+    res.json({ user: session.user });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/auth/logout", async (req, res, next) => {
+  try {
+    await logout(pool, tokenFrom(req));
+    clearSessionCookie(res);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get("/api/auth/me", (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "unauthenticated" });
+  res.json({ user: req.user });
+});
+
+// Staff management, owner only.
+app.get("/api/users", requireOwner, async (_req, res, next) => {
+  try {
+    res.json({ users: await listUsers(pool) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/users", requireOwner, async (req, res, next) => {
+  try {
+    const { username, name, password, role } = req.body || {};
+    res.json({ user: await createUser(pool, { username, name, password, role }) });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
+app.post("/api/users/:id/password", requireOwner, async (req, res, next) => {
+  try {
+    await setPassword(pool, req.params.id, (req.body || {}).password);
+    res.json({ ok: true });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
+app.delete("/api/users/:id", requireOwner, async (req, res, next) => {
+  try {
+    if (req.params.id === req.user.id) {
+      return res.status(400).json({ error: "cannot_deactivate_self" });
+    }
+    await deactivateUser(pool, req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Generic key/value store backing src/lib/storage.js's get/set/delete —
 // the app only ever persists two keys today (shop data, menu config),
-// but the endpoint doesn't need to know that.
+// but the endpoint doesn't need to know that. Signed in only: the shop's
+// inventory and takings are not public.
+app.use("/api/kv", requireUser);
+
 app.get("/api/kv/:key", async (req, res, next) => {
   try {
     const { rows } = await pool.query("SELECT value FROM kv_store WHERE key = $1", [req.params.key]);
@@ -274,7 +441,8 @@ async function connectWithRetry({ attempts = 8, delayMs = 2000 } = {}) {
 
 console.log(`Connecting to ${dbHost}:${dbPort} (SSL ${usingSsl ? "on" : "off"})…`);
 connectWithRetry()
-  .then(() => {
+  .then(async () => {
+    await pruneExpiredSessions(pool).catch(() => {});
     app.listen(port, () => console.log(`Açaí Control server listening on :${port}`));
   })
   .catch((err) => {

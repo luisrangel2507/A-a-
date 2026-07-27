@@ -80,6 +80,42 @@ Once it's up, `https://<your-app>.up.railway.app/api/health` returns
 `npm start` runs `server/index.js`, which serves both the API and the
 built frontend (`dist/`) on the same port — one service, no CORS.
 
+## Staff accounts
+
+Nothing in the app is reachable without signing in, and the API enforces it —
+`/api/kv/*` answers 401 without a session, so the shop's inventory and takings
+are not readable by anyone who finds the URL.
+
+- **First run.** With no accounts yet, the app offers to create the owner's
+  account instead of showing a login form nobody could answer. Once one exists,
+  that screen closes permanently.
+- **Employees.** The owner adds them under **Team**, each with their own
+  username and password. Every sale records who rang it up, and Reports breaks
+  the day's takings down per person.
+- **Removing access** deactivates the account rather than deleting it, so past
+  sales keep their attribution, and drops that person's sessions immediately.
+- **Passwords** are stored as scrypt hashes with a per-password salt (see
+  `server/auth.js`) — never in plain text. Sessions are random tokens kept in the
+  database and sent as an httpOnly cookie, so page scripts cannot read them.
+
+One limitation worth knowing: sales live inside the shop-data JSON blob that the
+browser writes, so the *server* does not enforce the attribution on each sale —
+a signed-in employee could in principle edit it. Making that tamper-proof means
+moving sales into their own table, which is a worthwhile change if attribution
+ever needs to settle a dispute rather than just show who was busy.
+
+## Flavour and topping photos
+
+`src/assets/flavors/` and `src/assets/toppings/` are picked up by filename: drop
+`mango_cream.jpg` into the flavours folder and that flavour starts showing it —
+in the picker, and as the scoop inside the bowl. Toppings work the same way and
+show up both in the chips and on the açaí.
+
+`src/assets/IMAGENES.md` lists the exact filename each of the 9 flavours and 28
+toppings expects. Anything without a photo keeps using its colour, so they can be
+added a few at a time. Accepted: `.jpg`, `.jpeg`, `.png`, `.webp`, `.avif`;
+square images look best.
+
 ## How the shared backend works
 
 - `server/index.js` is a small Express app with one generic endpoint,

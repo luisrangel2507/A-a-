@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   X,
   Check,
+  Users,
 } from "lucide-react";
 import {
   BarChart,
@@ -17,23 +18,39 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
-import storage from "./lib/storage";
+import storage, { SessionExpiredError } from "./lib/storage";
+import auth from "./lib/auth";
+import { COLOR } from "./theme";
+import { SignInScreen, TeamPanel } from "./Auth";
 import bowlImage from "./assets/bowl.jpg";
 
-// ---------- Design tokens ----------
-const COLOR = {
-  acai: "#4B1D3F",
-  acaiLight: "#7A3866",
-  acaiPale: "#F4E9F0",
-  passion: "#F2994A",
-  kiwi: "#7C9A3A",
-  alert: "#C6414F",
-  bg: "#FAF4F7",
-  card: "#FFFFFF",
-  ink: "#241820",
-  inkSoft: "#6E5C68",
-  line: "#EADFE6",
-};
+// Photos are picked up from the filesystem by name: drop mango_cream.jpg into
+// assets/flavors/ and that flavour starts showing it, with no code change.
+// See assets/IMAGENES.md for the filename each flavour and topping expects.
+// Anything without a photo keeps using its colour, so they can be added one at a time.
+const byFileName = (modules) =>
+  Object.fromEntries(
+    Object.entries(modules).map(([path, url]) => [
+      path.split("/").pop().replace(/\.[^.]+$/, ""),
+      url,
+    ])
+  );
+
+const FLAVOR_PHOTOS = byFileName(
+  import.meta.glob("./assets/flavors/*.{jpg,jpeg,png,webp,avif}", {
+    eager: true,
+    query: "?url",
+    import: "default",
+  })
+);
+
+const TOPPING_PHOTOS = byFileName(
+  import.meta.glob("./assets/toppings/*.{jpg,jpeg,png,webp,avif}", {
+    eager: true,
+    query: "?url",
+    import: "default",
+  })
+);
 
 const STORAGE_SHOP = "shop-data-v3";
 const STORAGE_MENU = "menu-config-v3";
@@ -185,6 +202,26 @@ function TabButton({ active, onClick, icon: Icon, label }) {
   );
 }
 
+// The dot beside a topping's name, which becomes its photo once one exists —
+// and grows, because a photo at swatch size is unreadable.
+function ToppingSwatch({ toppingId, color }) {
+  const photo = TOPPING_PHOTOS[toppingId];
+  const size = photo ? 20 : 10;
+  return (
+    <span
+      className="shrink-0 overflow-hidden rounded-full"
+      style={{
+        width: size,
+        height: size,
+        background: color || "#ccc",
+        border: "1px solid rgba(0,0,0,0.15)",
+      }}
+    >
+      {photo && <img src={photo} alt="" className="h-full w-full object-cover" />}
+    </span>
+  );
+}
+
 function StockBar({ pct, low }) {
   const c = low ? COLOR.alert : pct < 0.4 ? COLOR.passion : COLOR.kiwi;
   return (
@@ -223,12 +260,17 @@ function ProgressSteps({ step, onJump }) {
 const BOWL_INTERIOR = { cx: 0.5074, cy: 0.4853, r: 0.3824 };
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
-function BowlPreview({ baseColor, toppingIds, toppings, ingredients }) {
+function BowlPreview({ baseColor, productId, toppingIds, toppings, ingredients }) {
   const active = toppingIds
     .map((id) => toppings.find((t) => t.id === id))
     .filter(Boolean)
-    .map((t) => ingredients.find((i) => i.id === t.ingredientId))
+    .map((t) => {
+      const ing = ingredients.find((i) => i.id === t.ingredientId);
+      return ing ? { ...ing, photo: TOPPING_PHOTOS[t.id] } : null;
+    })
     .filter(Boolean);
+
+  const flavorPhoto = productId ? FLAVOR_PHOTOS[productId] : null;
 
   // The açaí sits a little inside the cavity, leaving a rim of ceramic visible.
   const fillR = BOWL_INTERIOR.r * 0.88;
@@ -250,18 +292,25 @@ function BowlPreview({ baseColor, toppingIds, toppings, ingredients }) {
         className="absolute inset-0 h-full w-full rounded-2xl object-cover"
       />
 
-      {/* The scoop of açaí: lit from the upper left, with the bowl's shadow across its top edge. */}
+      {/* The scoop of açaí: a photo of the flavour once there is one, otherwise its
+          colour, lit from the upper left with the bowl's shadow across its top edge. */}
       <div
-        className="absolute rounded-full"
+        className="absolute overflow-hidden rounded-full"
         style={{
           left: `${(BOWL_INTERIOR.cx - fillR) * 100}%`,
           top: `${(BOWL_INTERIOR.cy - fillR) * 100}%`,
           width: `${fillR * 200}%`,
           height: `${fillR * 200}%`,
-          background: `radial-gradient(circle at 36% 30%, ${baseColor}, ${baseColor}e6 62%, ${baseColor}bf 100%)`,
+          background: flavorPhoto
+            ? baseColor
+            : `radial-gradient(circle at 36% 30%, ${baseColor}, ${baseColor}e6 62%, ${baseColor}bf 100%)`,
           boxShadow: `inset 0 8px 18px rgba(0,0,0,0.32), 0 2px 10px rgba(58,22,48,0.28)`,
         }}
-      />
+      >
+        {flavorPhoto && (
+          <img src={flavorPhoto} alt="" className="h-full w-full object-cover" />
+        )}
+      </div>
 
       {/* Toppings scattered across the açaí on a sunflower spiral, so any number
           spreads evenly instead of bunching into a ring. */}
@@ -274,7 +323,7 @@ function BowlPreview({ baseColor, toppingIds, toppings, ingredients }) {
           <div
             key={ing.id + idx}
             title={ing.name}
-            className="absolute rounded-full"
+            className="absolute overflow-hidden rounded-full"
             style={{
               left: `${x * 100}%`,
               top: `${y * 100}%`,
@@ -285,7 +334,9 @@ function BowlPreview({ baseColor, toppingIds, toppings, ingredients }) {
               border: "1.5px solid rgba(255,255,255,0.82)",
               boxShadow: "0 1px 3px rgba(0,0,0,0.42)",
             }}
-          />
+          >
+            {ing.photo && <img src={ing.photo} alt="" className="h-full w-full object-cover" />}
+          </div>
         );
       })}
     </div>
@@ -293,6 +344,11 @@ function BowlPreview({ baseColor, toppingIds, toppings, ingredients }) {
 }
 
 export default function AcaiControlApp() {
+  // Nothing in the app is reachable without a session: `me` is null until one
+  // exists, and `checking` covers the moment before we know either way, so the
+  // sign-in screen doesn't flash for someone who is already signed in.
+  const [checking, setChecking] = useState(true);
+  const [me, setMe] = useState(null);
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState("pos");
   const [ingredients, setIngredients] = useState([]);
@@ -309,8 +365,48 @@ export default function AcaiControlApp() {
   const cartSectionRef = useRef(null);
 
   useEffect(() => {
-    load();
+    let alive = true;
+    auth
+      .me()
+      .then((user) => {
+        if (!alive) return;
+        setMe(user);
+        setChecking(false);
+      })
+      .catch(() => alive && setChecking(false));
+    return () => {
+      alive = false;
+    };
   }, []);
+
+  // Shop data is only fetched once there is a session — the endpoint refuses it otherwise.
+  useEffect(() => {
+    if (me) load();
+  }, [me]);
+
+  // A session that lapses mid-shift drops back to the sign-in screen rather than
+  // leaving the register looking functional while nothing saves.
+  function handleStorageError(err, fallbackMessage) {
+    if (err instanceof SessionExpiredError) {
+      setMe(null);
+      setReady(false);
+      return true;
+    }
+    if (fallbackMessage) showToast(fallbackMessage, true);
+    return false;
+  }
+
+  async function signOut() {
+    try {
+      await auth.logout();
+    } catch {
+      // Even if the request fails, drop the local session so the register locks.
+    }
+    setMe(null);
+    setReady(false);
+    setCart([]);
+    setTab("pos");
+  }
 
   async function load() {
     let ing = defaultIngredients();
@@ -324,9 +420,13 @@ export default function AcaiControlApp() {
         if (d.sales) sl = d.sales;
       }
     } catch (e) {
+      // A missing key is the first-run case: seed it. A lapsed session is not.
+      if (handleStorageError(e)) return;
       try {
         await storage.set(STORAGE_SHOP, JSON.stringify({ ingredients: ing, sales: sl }));
-      } catch (e2) {}
+      } catch (e2) {
+        if (handleStorageError(e2)) return;
+      }
     }
     try {
       const menuRes = await storage.get(STORAGE_MENU);
@@ -334,9 +434,12 @@ export default function AcaiControlApp() {
         mn = JSON.parse(menuRes.value);
       }
     } catch (e) {
+      if (handleStorageError(e)) return;
       try {
         await storage.set(STORAGE_MENU, JSON.stringify(mn));
-      } catch (e2) {}
+      } catch (e2) {
+        if (handleStorageError(e2)) return;
+      }
     }
     setIngredients(ing);
     setSales(sl);
@@ -351,7 +454,7 @@ export default function AcaiControlApp() {
     try {
       await storage.set(STORAGE_SHOP, JSON.stringify({ ingredients: nextIngredients, sales: nextSales }));
     } catch (e) {
-      showToast("Couldn't save. Please try again.", true);
+      handleStorageError(e, "No se pudo guardar. Inténtalo de nuevo.");
     }
   }
 
@@ -432,6 +535,9 @@ export default function AcaiControlApp() {
         size: item.size,
         toppingIds: item.toppingIds,
         price: item.price,
+        // Who rang it up, taken from the signed-in session rather than typed in.
+        userId: me?.id || null,
+        userName: me?.name || null,
       })),
     ];
     await persistShop(nextIngredients, newSales);
@@ -497,7 +603,18 @@ export default function AcaiControlApp() {
 
     const lowStock = ingredients.filter((i) => i.stock <= i.low);
 
-    return { todayTotal, todayCount: todaySales.length, days, topProduct, topTopping, lowStock };
+    // Who sold what today. Sales recorded before staff accounts existed have no
+    // name, so they are grouped under a placeholder rather than dropped.
+    const byPerson = {};
+    todaySales.forEach((s) => {
+      const who = s.userName || "Sin registrar";
+      if (!byPerson[who]) byPerson[who] = { name: who, total: 0, count: 0 };
+      byPerson[who].total += s.price;
+      byPerson[who].count += 1;
+    });
+    const people = Object.values(byPerson).sort((a, b) => b.total - a.total);
+
+    return { todayTotal, todayCount: todaySales.length, days, topProduct, topTopping, lowStock, people };
   }, [sales, ingredients, menu]);
 
   const toppingsByCategory = useMemo(() => {
@@ -516,11 +633,42 @@ export default function AcaiControlApp() {
     cartSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  // The webfonts and the two display classes are needed by the sign-in screen too,
+  // which renders before the app shell exists.
+  const typography = (
+    <style>{`
+      @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Space+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');
+      .font-display { font-family: 'Fraunces', serif; }
+      .font-mono-num { font-family: 'IBM Plex Mono', monospace; }
+    `}</style>
+  );
+
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: COLOR.bg }}>
+        {typography}
+        <div style={{ color: COLOR.acai }} className="text-sm font-medium">
+          Cargando…
+        </div>
+      </div>
+    );
+  }
+
+  if (!me) {
+    return (
+      <>
+        {typography}
+        <SignInScreen onSignedIn={setMe} />
+      </>
+    );
+  }
+
   if (!ready) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: COLOR.bg }}>
+        {typography}
         <div style={{ color: COLOR.acai }} className="text-sm font-medium">
-          Loading…
+          Cargando…
         </div>
       </div>
     );
@@ -528,11 +676,7 @@ export default function AcaiControlApp() {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: COLOR.bg, fontFamily: "'Space Grotesk', sans-serif" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Space+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');
-        .font-display { font-family: 'Fraunces', serif; }
-        .font-mono-num { font-family: 'IBM Plex Mono', monospace; }
-      `}</style>
+      {typography}
 
       {/* Header */}
       <div className="px-5 pt-6 pb-4 relative" style={{ background: COLOR.acai }}>
@@ -541,6 +685,8 @@ export default function AcaiControlApp() {
         </h1>
         <p className="text-sm mt-0.5" style={{ color: "#D9B9CC" }}>
           {new Date().toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long" })}
+          {" · "}
+          {me.name}
         </p>
 
         {/* Fix #5: live cart badge, visible through the whole builder flow */}
@@ -572,6 +718,7 @@ export default function AcaiControlApp() {
             <div className="rounded-2xl p-4" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
               <BowlPreview
                 baseColor={currentProduct?.color || COLOR.acai}
+                productId={currentProduct?.id}
                 toppingIds={builder.toppingIds}
                 toppings={menu.toppings}
                 ingredients={ingredients}
@@ -627,10 +774,18 @@ export default function AcaiControlApp() {
                       }}
                     >
                       <span
-                        className="flex items-center justify-center rounded-full text-2xl shrink-0"
+                        className="flex items-center justify-center overflow-hidden rounded-full text-2xl shrink-0"
                         style={{ width: 44, height: 44, background: `${p.color}22` }}
                       >
-                        {FLAVOR_EMOJI[p.id] || "🍧"}
+                        {FLAVOR_PHOTOS[p.id] ? (
+                          <img
+                            src={FLAVOR_PHOTOS[p.id]}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          FLAVOR_EMOJI[p.id] || "🍧"
+                        )}
                       </span>
                       <span className="text-base font-medium" style={{ color: COLOR.ink }}>{p.name}</span>
                     </button>
@@ -667,10 +822,7 @@ export default function AcaiControlApp() {
                               color: on ? "#fff" : COLOR.ink,
                             }}
                           >
-                            <span
-                              className="w-2.5 h-2.5 rounded-full"
-                              style={{ background: ing?.color || "#ccc", border: "1px solid rgba(0,0,0,0.15)" }}
-                            />
+                            <ToppingSwatch toppingId={t.id} color={ing?.color} />
                             {t.name}
                           </button>
                         );
@@ -705,10 +857,7 @@ export default function AcaiControlApp() {
                                 opacity: out ? 0.5 : 1,
                               }}
                             >
-                              <span
-                                className="w-2.5 h-2.5 rounded-full"
-                                style={{ background: ing?.color || "#ccc", border: "1px solid rgba(0,0,0,0.15)" }}
-                              />
+                              <ToppingSwatch toppingId={t.id} color={ing?.color} />
                               {t.name}
                               {out && " · out of stock"}
                             </button>
@@ -922,6 +1071,31 @@ export default function AcaiControlApp() {
             </div>
 
             <div className="rounded-2xl p-4" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
+              <p className="text-base font-semibold mb-3">Sold by</p>
+              {report.people.length === 0 ? (
+                <p className="text-sm" style={{ color: COLOR.inkSoft }}>
+                  No sales today yet.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {report.people.map((p) => (
+                    <div key={p.name} className="flex items-baseline justify-between gap-3">
+                      <span className="truncate text-base" style={{ color: COLOR.ink }}>
+                        {p.name}
+                      </span>
+                      <span className="shrink-0 text-sm" style={{ color: COLOR.inkSoft }}>
+                        {p.count} {p.count === 1 ? "bowl" : "bowls"} ·{" "}
+                        <span className="font-mono-num font-semibold" style={{ color: COLOR.acai }}>
+                          {money(p.total)}
+                        </span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-2xl p-4" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
               <p className="text-base font-semibold mb-1">Favorite topping</p>
               <p className="text-lg font-semibold">{report.topTopping ? report.topTopping[0] : "—"}</p>
               <p className="text-sm" style={{ color: COLOR.inkSoft }}>
@@ -941,6 +1115,8 @@ export default function AcaiControlApp() {
             )}
           </div>
         )}
+
+        {tab === "equipo" && <TeamPanel me={me} onSignOut={signOut} />}
       </div>
 
       {/* Bottom nav */}
@@ -948,6 +1124,7 @@ export default function AcaiControlApp() {
         <TabButton active={tab === "pos"} onClick={() => setTab("pos")} icon={ShoppingBag} label="Sales" />
         <TabButton active={tab === "inventario"} onClick={() => setTab("inventario")} icon={Package} label="Inventory" />
         <TabButton active={tab === "reportes"} onClick={() => setTab("reportes")} icon={BarChart3} label="Reports" />
+        <TabButton active={tab === "equipo"} onClick={() => setTab("equipo")} icon={Users} label="Team" />
       </div>
     </div>
   );
