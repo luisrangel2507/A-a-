@@ -26,10 +26,28 @@ if (!connectionString) {
   process.exit(1);
 }
 
-const isLocalDb = /localhost|127\.0\.0\.1/.test(connectionString);
+// Postgres reached over a loopback or private network speaks plaintext, and
+// forcing SSL there fails with "The server does not support SSL connections".
+// Railway's database lives on *.railway.internal, so it belongs in that group;
+// anything else (a public host like Neon or Railway's TCP proxy) gets SSL.
+const { dbHost, dbPort } = (() => {
+  try {
+    const u = new URL(connectionString);
+    return { dbHost: u.hostname, dbPort: u.port || "5432" };
+  } catch {
+    return { dbHost: "", dbPort: "5432" };
+  }
+})();
+const isPrivateHost =
+  dbHost === "localhost" ||
+  dbHost === "127.0.0.1" ||
+  dbHost === "::1" ||
+  dbHost.endsWith(".internal");
+const sslDisabledInUrl = /[?&]sslmode=disable(&|$)/.test(connectionString);
+
 const pool = new Pool({
   connectionString,
-  ssl: isLocalDb ? false : { rejectUnauthorized: false },
+  ssl: isPrivateHost || sslDisabledInUrl ? false : { rejectUnauthorized: false },
 });
 
 async function ensureSchema() {
@@ -104,6 +122,22 @@ ensureSchema()
     app.listen(port, () => console.log(`Açaí Control server listening on :${port}`));
   })
   .catch((err) => {
+    if (err.code === "ECONNREFUSED" && isPrivateHost && dbHost !== "") {
+      console.error(
+        [
+          `Could not reach Postgres at ${dbHost}:${dbPort} — nothing is listening there.`,
+          "",
+          "If this is a deployment, DATABASE_URL is pointing at the app's own container",
+          "instead of the database. The value from .env.example is a local placeholder;",
+          "don't copy it into Railway. Set the app service's variable to a reference:",
+          "",
+          "    DATABASE_URL=${{Postgres.DATABASE_URL}}",
+          "",
+          "Railway substitutes the real internal host at deploy time.",
+        ].join("\n")
+      );
+      process.exit(1);
+    }
     console.error("Failed to initialize database schema:", err);
     process.exit(1);
   });
