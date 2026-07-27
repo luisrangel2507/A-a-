@@ -18,6 +18,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import storage from "./lib/storage";
+import bowlImage from "./assets/bowl.jpg";
 
 // ---------- Design tokens ----------
 const COLOR = {
@@ -215,7 +216,13 @@ function ProgressSteps({ step, onJump }) {
   );
 }
 
-// Signature element: radial bowl preview showing base + chosen toppings
+// Signature element: the bowl the shop actually serves in, filled with the chosen
+// flavour and toppings. BOWL_INTERIOR locates the ceramic cavity within
+// assets/bowl.jpg as fractions of the image, measured off the photo — everything
+// is placed relative to it so the food lands inside the bowl at any size.
+const BOWL_INTERIOR = { cx: 0.5074, cy: 0.4853, r: 0.3824 };
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+
 function BowlPreview({ baseColor, toppingIds, toppings, ingredients }) {
   const active = toppingIds
     .map((id) => toppings.find((t) => t.id === id))
@@ -223,29 +230,61 @@ function BowlPreview({ baseColor, toppingIds, toppings, ingredients }) {
     .map((t) => ingredients.find((i) => i.id === t.ingredientId))
     .filter(Boolean);
 
+  // The açaí sits a little inside the cavity, leaving a rim of ceramic visible.
+  const fillR = BOWL_INTERIOR.r * 0.88;
+  const label =
+    active.length === 0
+      ? "an empty bowl"
+      : `a bowl with ${active.map((i) => i.name).join(", ")}`;
+
   return (
-    <div className="relative mx-auto" style={{ width: 168, height: 168 }}>
-      <div
-        className="absolute inset-0 rounded-full shadow-inner"
-        style={{ background: `radial-gradient(circle at 35% 30%, ${baseColor}dd, ${baseColor} 70%)` }}
+    <div
+      className="relative mx-auto w-full"
+      style={{ maxWidth: 236, aspectRatio: "1 / 1" }}
+      role="img"
+      aria-label={label}
+    >
+      <img
+        src={bowlImage}
+        alt=""
+        className="absolute inset-0 h-full w-full rounded-2xl object-cover"
       />
+
+      {/* The scoop of açaí: lit from the upper left, with the bowl's shadow across its top edge. */}
       <div
-        className="absolute inset-[10px] rounded-full flex items-center justify-center text-sm font-medium text-center px-3"
-        style={{ background: `radial-gradient(circle at 40% 35%, ${baseColor}cc, ${baseColor}f2 75%)`, color: "#FCF7FA" }}
-      >
-        {active.length === 0 ? "your bowl" : `${active.length} topping${active.length > 1 ? "s" : ""}`}
-      </div>
+        className="absolute rounded-full"
+        style={{
+          left: `${(BOWL_INTERIOR.cx - fillR) * 100}%`,
+          top: `${(BOWL_INTERIOR.cy - fillR) * 100}%`,
+          width: `${fillR * 200}%`,
+          height: `${fillR * 200}%`,
+          background: `radial-gradient(circle at 36% 30%, ${baseColor}, ${baseColor}e6 62%, ${baseColor}bf 100%)`,
+          boxShadow: `inset 0 8px 18px rgba(0,0,0,0.32), 0 2px 10px rgba(58,22,48,0.28)`,
+        }}
+      />
+
+      {/* Toppings scattered across the açaí on a sunflower spiral, so any number
+          spreads evenly instead of bunching into a ring. */}
       {active.map((ing, idx) => {
-        const angle = (idx / Math.max(active.length, 1)) * 2 * Math.PI - Math.PI / 2;
-        const r = 76;
-        const x = 84 + r * Math.cos(angle) - 9;
-        const y = 84 + r * Math.sin(angle) - 9;
+        const angle = idx * GOLDEN_ANGLE;
+        const rad = fillR * 0.76 * Math.sqrt((idx + 0.5) / active.length);
+        const x = BOWL_INTERIOR.cx + rad * Math.cos(angle);
+        const y = BOWL_INTERIOR.cy + rad * Math.sin(angle);
         return (
           <div
             key={ing.id + idx}
             title={ing.name}
-            className="absolute rounded-full border-2"
-            style={{ left: x, top: y, width: 18, height: 18, background: ing.color, borderColor: "#fff" }}
+            className="absolute rounded-full"
+            style={{
+              left: `${x * 100}%`,
+              top: `${y * 100}%`,
+              width: "8%",
+              height: "8%",
+              transform: "translate(-50%, -50%)",
+              background: ing.color,
+              border: "1.5px solid rgba(255,255,255,0.82)",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.42)",
+            }}
           />
         );
       })}
