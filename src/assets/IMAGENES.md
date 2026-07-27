@@ -3,8 +3,25 @@
 Suelta cada imagen en la carpeta que le toca, con el nombre exacto de la lista.
 La app la detecta sola al compilar — no hay que tocar código.
 
-Formatos: .jpg, .jpeg, .png, .webp o .avif. Cuadradas se ven mejor.
-Lo que no tenga foto sigue mostrando su color actual, así puedes ir agregándolas de a poco.
+Formatos: .jpg, .jpeg, .png, .webp o .avif. Cuadradas y con el bowl centrado.
+Puedes agregarlas de a poco: cada una que caiga empieza a aparecer sola.
+
+## src/assets/bowls/  ← lo más útil, empieza por aquí
+
+La foto del **bowl ya servido**: ese sabor con los cuatro toppings gratis
+(granola, fresa, plátano y mantequilla de maní) y nada más. Es la que se muestra
+por defecto cuando el cliente no pide extras, que es el pedido más común.
+
+Se nombra con el id del sabor, igual que la lista de sabores de abajo — por
+ejemplo `coconut.jpg` para el bowl de Coconut Cream.
+
+Si el cliente **agrega** un extra, esa foto sigue de fondo y encima aparece el
+extra (si tiene su propia foto en `toppings/`). Si **quita** uno de los gratis,
+la foto ya no correspondería a lo que se lleva, así que se muestra el plato
+vacío con lo que sí tenga foto.
+
+Las carpetas `flavors/` y `toppings/` de abajo son para cuando quieras armar el
+bowl por piezas; si tienes la foto del bowl servido, esa manda.
 
 ## src/assets/flavors/  (9 sabores)
 

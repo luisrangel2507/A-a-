@@ -53,6 +53,18 @@ const TOPPING_PHOTOS = byFileName(
   })
 );
 
+// A finished bowl, photographed as the shop actually serves it: that flavour with
+// the four free toppings and nothing else. Named after the flavour, so
+// assets/bowls/coconut.jpg is the standard Coconut Cream bowl. This is the
+// default preview whenever the order is exactly that — no assembling required.
+const BOWL_PHOTOS = byFileName(
+  import.meta.glob("./assets/bowls/*.{jpg,jpeg,png,webp,avif}", {
+    eager: true,
+    query: "?url",
+    import: "default",
+  })
+);
+
 const STORAGE_SHOP = "shop-data-v3";
 const STORAGE_MENU = "menu-config-v3";
 const TOPPING_PRICE = 0.99;
@@ -261,11 +273,21 @@ function ProgressSteps({ step, onJump }) {
 const BOWL_INTERIOR = { cx: 0.5074, cy: 0.4853, r: 0.3824 };
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
-function BowlPreview({ productId, toppingIds, toppings, ingredients }) {
+function BowlPreview({ productId, toppingIds, includedToppingIds = [], toppings, ingredients }) {
+  // The standard bowl for this flavour is a single photograph of the finished
+  // dish, so it is used whole whenever the order matches it: the four free
+  // toppings, all present. Remove one and the photo would be showing something
+  // the customer is not getting, so it steps aside for the empty bowl.
+  const servedPhoto = productId ? BOWL_PHOTOS[productId] : null;
+  const hasEveryFreeTopping = includedToppingIds.every((id) => toppingIds.includes(id));
+  const useServedPhoto = Boolean(servedPhoto && hasEveryFreeTopping);
+
   // Only real photos go in the bowl. An option without one contributes nothing —
   // no stand-in colour standing where the food should be, so what the preview
-  // shows is always the actual product.
+  // shows is always the actual product. On top of the served photo only the paid
+  // extras are drawn; the free ones are already in it.
   const active = toppingIds
+    .filter((id) => !(useServedPhoto && includedToppingIds.includes(id)))
     .map((id) => toppings.find((t) => t.id === id))
     .filter((t) => t && TOPPING_PHOTOS[t.id])
     .map((t) => ({
@@ -275,10 +297,14 @@ function BowlPreview({ productId, toppingIds, toppings, ingredients }) {
     }));
 
   const flavorPhoto = productId ? FLAVOR_PHOTOS[productId] : null;
+  const showScoop = Boolean(flavorPhoto) && !useServedPhoto;
 
   // The scoop sits a little inside the cavity, leaving a rim of ceramic visible.
   const fillR = BOWL_INTERIOR.r * 0.88;
-  const shown = [...(flavorPhoto ? ["el sabor"] : []), ...active.map((t) => t.name)];
+  const shown = [
+    ...(useServedPhoto ? ["el bowl servido"] : showScoop ? ["el sabor"] : []),
+    ...active.map((t) => t.name),
+  ];
   const label = shown.length === 0 ? "Plato vacío" : `Plato con ${shown.join(", ")}`;
 
   return (
@@ -289,13 +315,13 @@ function BowlPreview({ productId, toppingIds, toppings, ingredients }) {
       aria-label={label}
     >
       <img
-        src={bowlImage}
+        src={useServedPhoto ? servedPhoto : bowlImage}
         alt=""
         className="absolute inset-0 h-full w-full rounded-2xl object-cover"
       />
 
       {/* The scoop, once there is a photo of this flavour. */}
-      {flavorPhoto && (
+      {showScoop && (
         <div
           className="absolute overflow-hidden rounded-full"
           style={{
@@ -723,6 +749,7 @@ export default function AcaiControlApp() {
               <BowlPreview
                 productId={currentProduct?.id}
                 toppingIds={builder.toppingIds}
+                includedToppingIds={menu.includedToppingIds}
                 toppings={menu.toppings}
                 ingredients={ingredients}
               />
