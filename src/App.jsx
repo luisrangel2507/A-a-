@@ -8,6 +8,7 @@ import {
   X,
   Check,
   Users,
+  ChevronLeft,
 } from "lucide-react";
 import {
   BarChart,
@@ -215,6 +216,22 @@ function TabButton({ active, onClick, icon: Icon, label }) {
   );
 }
 
+// Going back belongs at the top of a step, above what it undoes. Down beside the
+// primary action it sat under the prices, one slip away from the button that
+// commits them.
+function BackLink({ onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="-ml-1 mb-1 flex items-center gap-1 rounded-lg px-1 py-1 text-sm font-medium"
+      style={{ color: COLOR.inkSoft }}
+    >
+      <ChevronLeft size={16} /> Back
+    </button>
+  );
+}
+
 // The dot beside a topping's name, which becomes its photo once one exists —
 // and grows, because a photo at swatch size is unreadable.
 function ToppingSwatch({ toppingId, color }) {
@@ -407,7 +424,7 @@ export default function AcaiControlApp() {
   const [sales, setSales] = useState([]);
   const [menu, setMenu] = useState(defaultMenu());
   const [cart, setCart] = useState([]);
-  const [builder, setBuilder] = useState({ productId: null, size: "small", toppingIds: [] });
+  const [builder, setBuilder] = useState({ productId: null, size: null, toppingIds: [] });
   const [step, setStep] = useState(0);
   const [toast, setToast] = useState(null);
   const [restockId, setRestockId] = useState(null);
@@ -504,7 +521,10 @@ export default function AcaiControlApp() {
     setIngredients(ing);
     setSales(sl);
     setMenu(mn);
-    setBuilder({ productId: mn.products[0]?.id || null, size: "small", toppingIds: [...mn.includedToppingIds] });
+    // Nothing is chosen for the customer: size and flavour start empty, so no button
+    // looks picked until someone picks it. The free toppings are the exception —
+    // they are on the bowl unless removed, which is what the green box says.
+    setBuilder({ productId: null, size: null, toppingIds: [...mn.includedToppingIds] });
     setReady(true);
   }
 
@@ -525,7 +545,12 @@ export default function AcaiControlApp() {
 
   const currentProduct = menu.products.find((p) => p.id === builder.productId);
   const extraCount = builder.toppingIds.filter((id) => !menu.includedToppingIds.includes(id)).length;
-  const builderPrice = (currentProduct ? currentProduct.sizes[builder.size] : 0) + extraCount * menu.toppingPrice;
+  // Sizes are priced the same across the menu, so the size step can show prices
+  // before a flavour is chosen; it falls back to the first product for that.
+  const priceRef = currentProduct || menu.products[0];
+  const sizePrice = (sz) => (sz && priceRef ? priceRef.sizes[sz] : null);
+  const builderReady = Boolean(currentProduct && builder.size);
+  const builderPrice = (sizePrice(builder.size) || 0) + extraCount * menu.toppingPrice;
 
   function toggleTopping(id) {
     setBuilder((b) => {
@@ -534,13 +559,13 @@ export default function AcaiControlApp() {
     });
   }
 
-  function resetBuilder(productId) {
-    setBuilder({ productId, size: "small", toppingIds: [...menu.includedToppingIds] });
+  function resetBuilder() {
+    setBuilder({ productId: null, size: null, toppingIds: [...menu.includedToppingIds] });
     setStep(0);
   }
 
   function addToCart() {
-    if (!currentProduct) return;
+    if (!builderReady) return;
     setCart((c) => [
       ...c,
       {
@@ -552,7 +577,7 @@ export default function AcaiControlApp() {
         price: builderPrice,
       },
     ]);
-    resetBuilder(currentProduct.id);
+    resetBuilder();
     showToast("Added to order");
   }
 
@@ -807,7 +832,7 @@ export default function AcaiControlApp() {
                     >
                       <span className="text-base font-medium" style={{ color: COLOR.ink }}>{sz}</span>
                       <span className="font-mono-num text-base font-semibold" style={{ color: COLOR.ink }}>
-                        {currentProduct ? money(currentProduct.sizes[sz]) : ""}
+                        {sizePrice(sz) !== null ? money(sizePrice(sz)) : ""}
                       </span>
                     </button>
                   ))}
@@ -817,6 +842,7 @@ export default function AcaiControlApp() {
               {/* Step 2: Flavor */}
               {step === 1 && (
                 <div className="space-y-2">
+                  <BackLink onClick={() => setStep(0)} />
                   <p className="text-base font-semibold text-center mb-1" style={{ color: COLOR.ink }}>
                     Pick your flavor
                   </p>
@@ -850,15 +876,13 @@ export default function AcaiControlApp() {
                       <span className="text-base font-medium" style={{ color: COLOR.ink }}>{p.name}</span>
                     </button>
                   ))}
-                  <button onClick={() => setStep(0)} className="text-sm font-medium mt-1" style={{ color: COLOR.inkSoft }}>
-                    ← Back
-                  </button>
                 </div>
               )}
 
               {/* Step 3: Toppings — all in one screen, free ones grouped up top */}
               {step === 2 && (
                 <div className="space-y-3">
+                  <BackLink onClick={() => setStep(1)} />
                   <p className="text-base font-semibold text-center" style={{ color: COLOR.ink }}>
                     Add toppings
                   </p>
@@ -950,30 +974,27 @@ export default function AcaiControlApp() {
                     </div>
                   ))}
 
-                  <div className="flex gap-2 pt-1">
-                    <button onClick={() => setStep(1)} className="text-sm font-medium px-2" style={{ color: COLOR.inkSoft }}>
-                      ← Back
-                    </button>
-                    <button
-                      onClick={() => setStep(3)}
-                      className="flex-1 rounded-xl py-3 text-base font-semibold"
-                      style={{ background: COLOR.acai, color: "#fff" }}
-                    >
-                      Continue
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => setStep(3)}
+                    className="mt-1 w-full rounded-xl py-3 text-base font-semibold"
+                    style={{ background: COLOR.acai, color: "#fff" }}
+                  >
+                    Continue
+                  </button>
                 </div>
               )}
 
               {/* Step 4: Review */}
               {step === 3 && (
                 <div className="space-y-3">
+                  <BackLink onClick={() => setStep(2)} />
                   <p className="text-base font-semibold text-center" style={{ color: COLOR.ink }}>
                     Review your bowl
                   </p>
                   <div className="rounded-xl p-3" style={{ background: COLOR.acaiPale }}>
                     <p className="text-base font-semibold" style={{ color: COLOR.ink }}>
-                      {currentProduct?.name} · <span className="capitalize">{builder.size}</span>
+                      {currentProduct?.name || "No flavor chosen"} ·{" "}
+                      <span className="capitalize">{builder.size || "no size"}</span>
                     </p>
                     <p className="text-sm mt-1" style={{ color: COLOR.inkSoft }}>
                       {builder.toppingIds.length > 0
@@ -988,7 +1009,7 @@ export default function AcaiControlApp() {
                         <span className="capitalize">{builder.size}</span> bowl
                       </span>
                       <span className="font-mono-num text-sm" style={{ color: COLOR.inkSoft }}>
-                        {money(currentProduct ? currentProduct.sizes[builder.size] : 0)}
+                        {money(sizePrice(builder.size) || 0)}
                       </span>
                     </div>
                     {extraCount > 0 && (
@@ -1014,18 +1035,19 @@ export default function AcaiControlApp() {
                       </span>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => setStep(2)} className="text-sm font-medium px-2" style={{ color: COLOR.inkSoft }}>
-                      ← Back
-                    </button>
-                    <button
-                      onClick={addToCart}
-                      className="flex-1 rounded-xl py-3 text-base font-semibold flex items-center justify-center gap-2"
-                      style={{ background: COLOR.passion, color: "#fff" }}
-                    >
-                      <Plus size={18} /> Add to order
-                    </button>
-                  </div>
+                  {/* Nothing can be added until both choices are actually made. */}
+                  <button
+                    onClick={addToCart}
+                    disabled={!builderReady}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-base font-semibold"
+                    style={{
+                      background: builderReady ? COLOR.passion : COLOR.line,
+                      color: builderReady ? "#fff" : COLOR.inkSoft,
+                    }}
+                  >
+                    <Plus size={18} />
+                    {builderReady ? "Add to order" : "Choose a size and flavor"}
+                  </button>
                 </div>
               )}
             </div>
