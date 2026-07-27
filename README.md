@@ -133,12 +133,25 @@ show up both in the chips and on the açaí.
 toppings expects. Accepted: `.jpg`, `.jpeg`, `.png`, `.webp`, `.avif`; square
 images look best.
 
+`src/assets/bowls/` is the one to start with, and takes priority over the other
+two. It holds a photo of each flavour's **base bowl** — that flavour made up with
+the four free toppings and nothing else. It is not a finished dish; it is where
+most orders start.
+
 **The bowl only ever shows real photos.** A flavour without one leaves the bowl
 empty, and a topping without one adds nothing to it — nothing stands in for food
 that has not been photographed, so the preview is never a guess at what the
-customer will get. Photos can therefore be added a few at a time: each one that
-lands starts appearing on its own. The coloured dots beside topping names in the
-picker are unaffected; those are list markers, not a picture of the dish.
+customer will get.
+
+Because of that, the preview also says what it is leaving out. Adding a paid
+topping that has no photo yet keeps the base bowl and prints *Plus <name> — not
+pictured* across the bottom, so a plated-looking bowl is never mistaken for the
+whole order. Removing one of the free toppings drops the base photo entirely,
+since it would be showing food the customer is not getting.
+
+Photos can therefore be added a few at a time: each one that lands starts
+appearing on its own. The coloured dots beside topping names in the picker are
+unaffected; those are list markers, not a picture of the dish.
 
 ## How the shared backend works
 

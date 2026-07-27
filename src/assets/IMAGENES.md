@@ -8,20 +8,25 @@ Puedes agregarlas de a poco: cada una que caiga empieza a aparecer sola.
 
 ## src/assets/bowls/  ← lo más útil, empieza por aquí
 
-La foto del **bowl ya servido**: ese sabor con los cuatro toppings gratis
-(granola, fresa, plátano y mantequilla de maní) y nada más. Es la que se muestra
-por defecto cuando el cliente no pide extras, que es el pedido más común.
+La foto del **bowl base**: ese sabor con los cuatro toppings gratis (granola,
+fresa, plátano y mantequilla de maní) y nada más. **No es el bowl terminado** —
+es el punto de partida, el pedido más común cuando el cliente no pide extras.
 
 Se nombra con el id del sabor, igual que la lista de sabores de abajo — por
 ejemplo `coconut.jpg` para el bowl de Coconut Cream.
 
-Si el cliente **agrega** un extra, esa foto sigue de fondo y encima aparece el
-extra (si tiene su propia foto en `toppings/`). Si **quita** uno de los gratis,
-la foto ya no correspondería a lo que se lleva, así que se muestra el plato
-vacío con lo que sí tenga foto.
+Qué pasa cuando el pedido se aparta de esa base:
 
-Las carpetas `flavors/` y `toppings/` de abajo son para cuando quieras armar el
-bowl por piezas; si tienes la foto del bowl servido, esa manda.
+- **Agrega un extra** → la foto base se queda de fondo y el extra aparece encima,
+  si ya tiene su propia foto en `toppings/`. Si todavía no la tiene, el bowl
+  muestra abajo un aviso con el nombre del extra y la nota *not pictured*, para
+  que nadie confunda la foto con el pedido completo.
+- **Quita uno de los gratis** → la foto base mostraría comida que el cliente no
+  se lleva, así que se hace a un lado y aparece el plato vacío con lo que sí
+  tenga foto.
+
+Las carpetas `flavors/` y `toppings/` de abajo son para armar el bowl por piezas;
+si existe la foto base de ese sabor, esa manda.
 
 ## src/assets/flavors/  (9 sabores)
 

@@ -274,38 +274,46 @@ const BOWL_INTERIOR = { cx: 0.5074, cy: 0.4853, r: 0.3824 };
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
 function BowlPreview({ productId, toppingIds, includedToppingIds = [], toppings, ingredients }) {
-  // The standard bowl for this flavour is a single photograph of the finished
-  // dish, so it is used whole whenever the order matches it: the four free
-  // toppings, all present. Remove one and the photo would be showing something
-  // the customer is not getting, so it steps aside for the empty bowl.
-  const servedPhoto = productId ? BOWL_PHOTOS[productId] : null;
+  // The base bowl for this flavour: a photograph of it made up with the four free
+  // toppings and nothing else. It is the starting point of most orders, not a
+  // finished dish — anything paid still has to appear on top of it. Remove one of
+  // the free toppings and the photo shows food the customer is not getting, so it
+  // steps aside for the empty bowl.
+  const basePhoto = productId ? BOWL_PHOTOS[productId] : null;
   const hasEveryFreeTopping = includedToppingIds.every((id) => toppingIds.includes(id));
-  const useServedPhoto = Boolean(servedPhoto && hasEveryFreeTopping);
+  const useBasePhoto = Boolean(basePhoto && hasEveryFreeTopping);
 
-  // Only real photos go in the bowl. An option without one contributes nothing —
-  // no stand-in colour standing where the food should be, so what the preview
-  // shows is always the actual product. On top of the served photo only the paid
-  // extras are drawn; the free ones are already in it.
-  const active = toppingIds
-    .filter((id) => !(useServedPhoto && includedToppingIds.includes(id)))
+  const chosen = toppingIds
+    .filter((id) => !(useBasePhoto && includedToppingIds.includes(id))) // already in the base photo
     .map((id) => toppings.find((t) => t.id === id))
-    .filter((t) => t && TOPPING_PHOTOS[t.id])
+    .filter(Boolean)
     .map((t) => ({
       id: t.id,
       name: ingredients.find((i) => i.id === t.ingredientId)?.name || t.name,
       photo: TOPPING_PHOTOS[t.id],
     }));
 
+  // Only real photos go in the bowl; an option without one is never invented.
+  const active = chosen.filter((t) => t.photo);
+
+  // But it cannot be left at that: a bowl that already looks like food would
+  // otherwise read as the whole order while toppings are missing from it. What is
+  // absent gets named instead of quietly dropped.
+  const missing = chosen.filter((t) => !t.photo);
+
   const flavorPhoto = productId ? FLAVOR_PHOTOS[productId] : null;
-  const showScoop = Boolean(flavorPhoto) && !useServedPhoto;
+  const showScoop = Boolean(flavorPhoto) && !useBasePhoto;
+  const looksLikeFood = useBasePhoto || showScoop || active.length > 0;
 
   // The scoop sits a little inside the cavity, leaving a rim of ceramic visible.
   const fillR = BOWL_INTERIOR.r * 0.88;
   const shown = [
-    ...(useServedPhoto ? ["el bowl servido"] : showScoop ? ["el sabor"] : []),
+    ...(useBasePhoto ? ["lo incluido"] : showScoop ? ["el sabor"] : []),
     ...active.map((t) => t.name),
   ];
-  const label = shown.length === 0 ? "Plato vacío" : `Plato con ${shown.join(", ")}`;
+  const label =
+    (shown.length === 0 ? "Plato vacío" : `Plato con ${shown.join(", ")}`) +
+    (missing.length > 0 ? `. Sin foto todavía: ${missing.map((t) => t.name).join(", ")}` : "");
 
   return (
     <div
@@ -315,7 +323,7 @@ function BowlPreview({ productId, toppingIds, includedToppingIds = [], toppings,
       aria-label={label}
     >
       <img
-        src={useServedPhoto ? servedPhoto : bowlImage}
+        src={useBasePhoto ? basePhoto : bowlImage}
         alt=""
         className="absolute inset-0 h-full w-full rounded-2xl object-cover"
       />
@@ -361,6 +369,28 @@ function BowlPreview({ productId, toppingIds, includedToppingIds = [], toppings,
           </div>
         );
       })}
+
+      {/* Says what the picture is leaving out, so a bowl that looks plated is not
+          mistaken for the whole order while toppings are still unphotographed. */}
+      {looksLikeFood && missing.length > 0 && (
+        <div
+          className="absolute inset-x-0 bottom-0 rounded-b-2xl px-2 py-1.5"
+          style={{ background: "rgba(36,24,32,0.86)" }}
+        >
+          <p
+            className="text-center text-[11px] font-medium leading-tight"
+            style={{
+              color: "#FCF7FA",
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}
+          >
+            Plus {missing.map((t) => t.name).join(", ")} — not pictured
+          </p>
+        </div>
+      )}
     </div>
   );
 }
