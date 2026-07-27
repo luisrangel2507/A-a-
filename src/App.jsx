@@ -72,18 +72,6 @@ const TOPPING_PRICE = 0.99;
 const CATEGORY_ORDER = ["Dairy", "Nuts", "Fruits", "Others"];
 const STEP_LABELS = ["Size", "Flavor", "Toppings", "Review"];
 
-const FLAVOR_EMOJI = {
-  acai: "🫐",
-  cacao: "🍫",
-  pina: "🍍",
-  coconut: "🥥",
-  passion: "🟡",
-  dragon: "🐉",
-  mango_cream: "🥭",
-  spicy_mango: "🌶️",
-  matcha: "🍵",
-};
-
 const money = (n) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n || 0);
 
@@ -290,7 +278,7 @@ function ProgressSteps({ step, onJump }) {
 const BOWL_INTERIOR = { cx: 0.5074, cy: 0.4853, r: 0.3824 };
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
-function BowlPreview({ productId, toppingIds, includedToppingIds = [], toppings, ingredients }) {
+function BowlPreview({ productId, toppingIds, includedToppingIds = [], toppings, ingredients, maxWidth = 236 }) {
   // The base bowl for this flavour: a photograph of it made up with the four free
   // toppings and nothing else. It is the starting point of most orders, not a
   // finished dish — anything paid still has to appear on top of it. Remove one of
@@ -335,7 +323,7 @@ function BowlPreview({ productId, toppingIds, includedToppingIds = [], toppings,
   return (
     <div
       className="relative mx-auto w-full"
-      style={{ maxWidth: 236, aspectRatio: "1 / 1" }}
+      style={{ maxWidth, aspectRatio: "1 / 1" }}
       role="img"
       aria-label={label}
     >
@@ -801,6 +789,10 @@ export default function AcaiControlApp() {
         {tab === "pos" && (
           <div className="space-y-4">
             <div className="rounded-2xl p-4" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
+              {/* Hidden while picking a flavour: the bowl is necessarily empty at that
+                  point, and the nine choices need the whole screen to fit without
+                  scrolling. */}
+              {step !== 1 && (
               <BowlPreview
                 productId={currentProduct?.id}
                 toppingIds={builder.toppingIds}
@@ -808,6 +800,7 @@ export default function AcaiControlApp() {
                 toppings={menu.toppings}
                 ingredients={ingredients}
               />
+              )}
 
               <ProgressSteps step={step} onJump={setStep} />
 
@@ -846,36 +839,45 @@ export default function AcaiControlApp() {
                   <p className="text-base font-semibold text-center mb-1" style={{ color: COLOR.ink }}>
                     Pick your flavor
                   </p>
-                  {menu.products.map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={() => {
-                        setBuilder((b) => ({ ...b, productId: p.id }));
-                        setStep(2);
-                      }}
-                      className="w-full flex items-center gap-3 p-3.5 rounded-2xl border-2 text-left transition"
-                      style={{
-                        borderColor: builder.productId === p.id ? COLOR.acai : COLOR.line,
-                        background: builder.productId === p.id ? COLOR.acaiPale : "transparent",
-                      }}
-                    >
-                      <span
-                        className="flex items-center justify-center overflow-hidden rounded-full text-2xl shrink-0"
-                        style={{ width: 44, height: 44, background: `${p.color}22` }}
-                      >
-                        {FLAVOR_PHOTOS[p.id] ? (
-                          <img
-                            src={FLAVOR_PHOTOS[p.id]}
-                            alt=""
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          FLAVOR_EMOJI[p.id] || "🍧"
-                        )}
-                      </span>
-                      <span className="text-base font-medium" style={{ color: COLOR.ink }}>{p.name}</span>
-                    </button>
-                  ))}
+                  {/* Two columns, and no emoji: nine flavours in one column ran past the
+                      fold, and hunting for one by scrolling costs more than the picture
+                      of a sorbet was worth. A real photo still shows when there is one. */}
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {menu.products.map((p) => {
+                      const photo = FLAVOR_PHOTOS[p.id];
+                      const picked = builder.productId === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          onClick={() => {
+                            setBuilder((b) => ({ ...b, productId: p.id }));
+                            setStep(2);
+                          }}
+                          className="flex items-center gap-2 rounded-xl border-2 px-2.5 py-1.5 text-left transition"
+                          style={{
+                            borderColor: picked ? COLOR.acai : COLOR.line,
+                            background: picked ? COLOR.acaiPale : "transparent",
+                            minHeight: 44,
+                          }}
+                        >
+                          {photo && (
+                            <span
+                              className="shrink-0 overflow-hidden rounded-full"
+                              style={{ width: 30, height: 30 }}
+                            >
+                              <img src={photo} alt="" className="h-full w-full object-cover" />
+                            </span>
+                          )}
+                          <span
+                            className="text-sm font-medium leading-tight"
+                            style={{ color: COLOR.ink }}
+                          >
+                            {p.name}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
