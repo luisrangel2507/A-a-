@@ -807,8 +807,11 @@ export default function AcaiControlApp() {
                   </p>
 
                   <div className="rounded-xl p-3" style={{ background: "#EFF6E4", border: `1px solid ${COLOR.kiwi}55` }}>
-                    <p className="text-xs font-semibold mb-2" style={{ color: COLOR.kiwi }}>
-                      ✓ Included free — tap to remove any you don't want
+                    <p className="text-sm font-semibold" style={{ color: COLOR.kiwi }}>
+                      ✓ These four are free
+                    </p>
+                    <p className="mb-2 text-xs" style={{ color: COLOR.kiwi }}>
+                      Tap to remove any they don't want. Nothing else is free.
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {includedToppings.map((t) => {
@@ -833,14 +836,34 @@ export default function AcaiControlApp() {
                     </div>
                   </div>
 
-                  <p className="text-xs text-center" style={{ color: COLOR.inkSoft }}>
-                    Everything below is {money(menu.toppingPrice)} each
-                  </p>
+                  {/* The one rule that decides the bill, stated where it cannot be
+                      skimmed past: everything from here down is charged, dairy included. */}
+                  <div className="rounded-xl px-3 py-2.5" style={{ background: COLOR.acaiPale }}>
+                    <p className="text-sm font-semibold" style={{ color: COLOR.acai }}>
+                      Everything below costs {money(menu.toppingPrice)} each
+                    </p>
+                    <p className="text-xs" style={{ color: COLOR.acaiLight }}>
+                      {extraCount === 0 ? (
+                        "Dairy included."
+                      ) : (
+                        <>
+                          {extraCount} added ·{" "}
+                          <span className="font-mono-num font-semibold">
+                            {money(extraCount * menu.toppingPrice)}
+                          </span>
+                        </>
+                      )}
+                    </p>
+                  </div>
 
                   {CATEGORY_ORDER.map((cat) => (
                     <div key={cat}>
-                      <p className="text-xs uppercase tracking-wide font-semibold mb-1.5" style={{ color: COLOR.inkSoft }}>
+                      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide" style={{ color: COLOR.inkSoft }}>
                         {cat}
+                        <span className="font-mono-num normal-case tracking-normal">
+                          {" · "}
+                          {money(menu.toppingPrice)} each
+                        </span>
                       </p>
                       <div className="flex flex-wrap gap-2">
                         {(toppingsByCategory[cat] || []).map((t) => {
@@ -901,11 +924,38 @@ export default function AcaiControlApp() {
                         : "No toppings"}
                     </p>
                   </div>
-                  <div className="flex items-center justify-between px-1">
-                    <span className="text-base font-semibold" style={{ color: COLOR.ink }}>Price</span>
-                    <span className="font-mono-num text-xl font-semibold" style={{ color: COLOR.acai }}>
-                      {money(builderPrice)}
-                    </span>
+                  {/* Broken out so the customer can be told where the total comes from. */}
+                  <div className="space-y-1 px-1">
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-sm" style={{ color: COLOR.inkSoft }}>
+                        <span className="capitalize">{builder.size}</span> bowl
+                      </span>
+                      <span className="font-mono-num text-sm" style={{ color: COLOR.inkSoft }}>
+                        {money(currentProduct ? currentProduct.sizes[builder.size] : 0)}
+                      </span>
+                    </div>
+                    {extraCount > 0 && (
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-sm" style={{ color: COLOR.inkSoft }}>
+                          {extraCount} paid {extraCount === 1 ? "topping" : "toppings"} ×{" "}
+                          {money(menu.toppingPrice)}
+                        </span>
+                        <span className="font-mono-num text-sm" style={{ color: COLOR.inkSoft }}>
+                          {money(extraCount * menu.toppingPrice)}
+                        </span>
+                      </div>
+                    )}
+                    <div
+                      className="flex items-center justify-between border-t pt-1.5"
+                      style={{ borderColor: COLOR.line }}
+                    >
+                      <span className="text-base font-semibold" style={{ color: COLOR.ink }}>
+                        Price
+                      </span>
+                      <span className="font-mono-num text-xl font-semibold" style={{ color: COLOR.acai }}>
+                        {money(builderPrice)}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => setStep(2)} className="text-sm font-medium px-2" style={{ color: COLOR.inkSoft }}>
