@@ -6,6 +6,20 @@ La app la detecta sola al compilar — no hay que tocar código.
 Formatos: .jpg, .jpeg, .png, .webp o .avif. Cuadradas y con el bowl centrado.
 Puedes agregarlas de a poco: cada una que caiga empieza a aparecer sola.
 
+## Cómo preparar cada foto
+
+No hace falta recortarlas ni cambiarles el tamaño a mano. El script las deja
+parejas — cuadradas, centradas, comprimidas y con el nombre correcto:
+
+```bash
+pip install pillow                                   # una sola vez
+python3 scripts/add-photo.py foto.jpg toppings oreo
+python3 scripts/add-photo.py foto.jpg bowls coconut
+```
+
+Si el id no está en el menú, el script se detiene y te muestra los válidos, en
+vez de dejar un archivo que la app nunca va a mirar.
+
 ## src/assets/bowls/  ← lo más útil, empieza por aquí
 
 La foto del **bowl base**: ese sabor con los cuatro toppings gratis (granola,
