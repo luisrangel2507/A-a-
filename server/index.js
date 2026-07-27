@@ -87,18 +87,54 @@ function describeConnection() {
   }
 }
 
+// An sslmode in the URL takes precedence over the pool's own ssl option, so it
+// has to be dropped whenever this code needs its choice to be the one that applies.
+function connectionStringWithoutSslMode() {
+  try {
+    const u = new URL(connectionString);
+    u.searchParams.delete("sslmode");
+    u.searchParams.delete("channel_binding");
+    return u.toString();
+  } catch {
+    return connectionString;
+  }
+}
+
 // SSL can't be decided from the hostname alone: Railway's own Postgres answers
 // its public TCP proxy without SSL, while managed hosts like Neon require it.
 // Start with the likely setting and let the handshake correct it.
-function createPool(useSsl) {
-  return new Pool({
-    connectionString,
-    ssl: useSsl ? { rejectUnauthorized: false } : false,
-  });
+//
+// When SSL is on, a URL that asks for verification (Neon's sslmode=require) is
+// left intact so the certificate really is checked. Only if that verification
+// fails does relaxCert drop to an encrypted-but-unverified connection, which is
+// what self-signed certificates in front of managed databases need.
+function createPool(useSsl, relaxCert = false) {
+  if (!useSsl) {
+    return new Pool({ connectionString: connectionStringWithoutSslMode(), ssl: false });
+  }
+  if (relaxCert) {
+    return new Pool({
+      connectionString: connectionStringWithoutSslMode(),
+      ssl: { rejectUnauthorized: false },
+    });
+  }
+  return new Pool({ connectionString, ssl: { rejectUnauthorized: false } });
 }
 
 let usingSsl = !(isPrivateHost || sslDisabledInUrl);
+let relaxedCert = false;
 let pool = createPool(usingSsl);
+
+// The certificate could not be verified — encrypted still works, verified does not.
+function certRejected(err) {
+  return (
+    err.code === "DEPTH_ZERO_SELF_SIGNED_CERT" ||
+    err.code === "SELF_SIGNED_CERT_IN_CHAIN" ||
+    err.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" ||
+    err.code === "ERR_TLS_CERT_ALTNAME_INVALID" ||
+    /self.signed certificate|unable to verify/i.test(String(err && err.message))
+  );
+}
 
 // Postgres reports an SSL mismatch clearly, in both directions.
 function sslMismatch(err) {
@@ -202,6 +238,16 @@ async function connectWithRetry({ attempts = 8, delayMs = 2000 } = {}) {
       await ensureSchema();
       return;
     } catch (err) {
+      if (usingSsl && !relaxedCert && certRejected(err)) {
+        relaxedCert = true;
+        console.log(
+          `Could not verify the database's certificate (${err.code || err.message}) — ` +
+            "keeping the connection encrypted but skipping certificate verification."
+        );
+        await pool.end().catch(() => {});
+        pool = createPool(true, true);
+        continue;
+      }
       let flip = sslFlips < 1 ? sslMismatch(err) : null;
       if (!flip && sslFlips < 1 && handshakeDropped(err)) {
         flip = usingSsl ? "off" : "on";
@@ -212,7 +258,7 @@ async function connectWithRetry({ attempts = 8, delayMs = 2000 } = {}) {
         usingSsl = flip === "on";
         console.log(`Reconnecting with SSL ${flip}.`);
         await pool.end().catch(() => {});
-        pool = createPool(usingSsl);
+        pool = createPool(usingSsl, relaxedCert);
         continue;
       }
       const transient =

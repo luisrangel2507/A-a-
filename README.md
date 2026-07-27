@@ -32,6 +32,24 @@ API server (`http://localhost:4000`) together; Vite proxies `/api/*`
 requests to the API. To run them separately: `npm run dev:web` and
 `npm run dev:api`.
 
+## Deploying with an external database (Neon, Supabase, …)
+
+Any Postgres works — the database does not have to live on the same host as the
+app. This is often the simplest route, and it avoids Railway's private-network
+setup entirely:
+
+1. Copy the connection string from your provider (Neon: **Dashboard → your
+   project → Connect**). It looks like
+   `postgresql://user:password@ep-xxx.region.aws.neon.tech/dbname?sslmode=require`.
+2. Paste it as the app service's `DATABASE_URL` — the literal value, no variable
+   reference needed.
+3. Deploy. The app creates its table on first start.
+
+SSL is handled automatically: a provider certificate is verified normally, and a
+certificate that cannot be verified falls back to an encrypted-but-unverified
+connection rather than failing the deploy. Databases that sleep when idle are
+fine too — startup retries while the instance wakes.
+
 ## Deploying on Railway
 
 1. Push this folder to a GitHub repo (or point Railway at it directly).
