@@ -289,6 +289,24 @@ connectWithRetry()
       );
       process.exit(1);
     }
+    if (handshakeDropped(err)) {
+      console.error(
+        [
+          `${dbHost}:${dbPort} accepted the connection and then closed it, with SSL on and off alike.`,
+          "",
+          `The server received: ${describeConnection()}`,
+          "",
+          "The address is reachable, so this is not a networking or SSL problem: something",
+          "is listening but no database is answering behind it. On Railway that means the",
+          "endpoint is the public TCP proxy while the database service itself is not running.",
+          "",
+          "Open the database service in Railway and check its Deployments tab. A service can",
+          "keep its variables — so ${{Postgres.DATABASE_URL}} still resolves — while having no",
+          "running deployment at all. Redeploy it, or check its logs if it is crash-looping.",
+        ].join("\n")
+      );
+      process.exit(1);
+    }
     console.error("Failed to initialize database schema:", err);
     process.exit(1);
   });
