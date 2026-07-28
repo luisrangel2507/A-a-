@@ -70,7 +70,7 @@ const STORAGE_SHOP = "shop-data-v3";
 const STORAGE_MENU = "menu-config-v3";
 const TOPPING_PRICE = 0.99;
 const CATEGORY_ORDER = ["Dairy", "Nuts", "Fruits", "Others"];
-const STEP_LABELS = ["Size", "Flavor", "Toppings", "Review"];
+const STEP_LABELS = ["Size", "Flavor", "Included", "Extras", "Review"];
 
 // 0.0825 reads as 8.25%, and 0.08 as 8% — no trailing zeros to misread as a typo.
 const formatRate = (rate) =>
@@ -929,12 +929,13 @@ export default function AcaiControlApp() {
                 </div>
               )}
 
-              {/* Step 3: Toppings — all in one screen, free ones grouped up top */}
+              {/* Step 3: the four that come with the bowl, alone on the screen so
+                  removing one is a decision of its own, before anything is charged. */}
               {step === 2 && (
                 <div className="space-y-3">
                   <BackLink onClick={() => setStep(1)} />
                   <p className="text-base font-semibold text-center" style={{ color: COLOR.ink }}>
-                    Add toppings
+                    Included toppings
                   </p>
 
                   <div className="rounded-xl p-3" style={{ background: "#EFF6E4", border: `1px solid ${COLOR.kiwi}55` }}>
@@ -942,7 +943,7 @@ export default function AcaiControlApp() {
                       ✓ These four are free
                     </p>
                     <p className="mb-2 text-xs" style={{ color: COLOR.kiwi }}>
-                      Tap to remove any they don't want. Nothing else is free.
+                      Tap to remove any they don't want. Paid extras come next.
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {includedToppings.map((t) => {
@@ -967,15 +968,32 @@ export default function AcaiControlApp() {
                     </div>
                   </div>
 
-                  {/* The one rule that decides the bill, stated where it cannot be
-                      skimmed past: everything from here down is charged, dairy included. */}
+                  <button
+                    onClick={() => setStep(3)}
+                    className="mt-1 w-full rounded-xl py-3 text-base font-semibold"
+                    style={{ background: COLOR.acai, color: "#fff" }}
+                  >
+                    Continue
+                  </button>
+                </div>
+              )}
+
+              {/* Step 4: the paid extras, on their own screen so the free four are
+                  settled first and nothing charged shares a page with them. */}
+              {step === 3 && (
+                <div className="space-y-3">
+                  <BackLink onClick={() => setStep(2)} />
+                  <p className="text-base font-semibold text-center" style={{ color: COLOR.ink }}>
+                    Add extras
+                  </p>
+
                   <div className="rounded-xl px-3 py-2.5" style={{ background: COLOR.acaiPale }}>
                     <p className="text-sm font-semibold" style={{ color: COLOR.acai }}>
                       Everything below costs {money(menu.toppingPrice)} each
                     </p>
                     <p className="text-xs" style={{ color: COLOR.acaiLight }}>
                       {extraCount === 0 ? (
-                        "Dairy included."
+                        "Dairy too — nothing here is free."
                       ) : (
                         <>
                           {extraCount} added ·{" "}
@@ -1025,7 +1043,7 @@ export default function AcaiControlApp() {
                   ))}
 
                   <button
-                    onClick={() => setStep(3)}
+                    onClick={() => setStep(4)}
                     className="mt-1 w-full rounded-xl py-3 text-base font-semibold"
                     style={{ background: COLOR.acai, color: "#fff" }}
                   >
@@ -1034,10 +1052,10 @@ export default function AcaiControlApp() {
                 </div>
               )}
 
-              {/* Step 4: Review */}
-              {step === 3 && (
+              {/* Step 5: Review */}
+              {step === 4 && (
                 <div className="space-y-3">
-                  <BackLink onClick={() => setStep(2)} />
+                  <BackLink onClick={() => setStep(3)} />
                   <p className="text-base font-semibold text-center" style={{ color: COLOR.ink }}>
                     Review your bowl
                   </p>
