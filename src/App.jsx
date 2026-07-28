@@ -214,6 +214,24 @@ function TabButton({ active, onClick, icon: Icon, label }) {
   );
 }
 
+// What has been chosen so far, carried into the steps that follow it. Without it
+// the flavour screen gives no way to check the size without going back for it.
+function StepHeader({ onBack, parts = [] }) {
+  return (
+    <div className="mb-1 flex items-center justify-between gap-2">
+      <BackLink onClick={onBack} />
+      {parts.length > 0 && (
+        <p
+          className="truncate rounded-lg px-2 py-1 text-sm font-medium"
+          style={{ background: COLOR.acaiPale, color: COLOR.acai }}
+        >
+          {parts.join(" · ")}
+        </p>
+      )}
+    </div>
+  );
+}
+
 // Going back belongs at the top of a step, above what it undoes. Down beside the
 // primary action it sat under the prices, one slip away from the button that
 // commits them.
@@ -548,6 +566,16 @@ export default function AcaiControlApp() {
   const priceRef = currentProduct || menu.products[0];
   const sizePrice = (sz) => (sz && priceRef ? priceRef.sizes[sz] : null);
   const builderReady = Boolean(currentProduct && builder.size);
+
+  // Size carries its price on the flavour screen, where the price is not otherwise
+  // on the page; once a flavour is picked the name matters more than repeating it.
+  const chosenSoFar = [
+    builder.size &&
+      (currentProduct
+        ? builder.size[0].toUpperCase() + builder.size.slice(1)
+        : `${builder.size[0].toUpperCase()}${builder.size.slice(1)} · ${money(sizePrice(builder.size))}`),
+    currentProduct?.name,
+  ].filter(Boolean);
   const builderPrice = (sizePrice(builder.size) || 0) + extraCount * menu.toppingPrice;
 
   function toggleTopping(id) {
@@ -883,7 +911,7 @@ export default function AcaiControlApp() {
               {/* Step 2: Flavor */}
               {step === 1 && (
                 <div className="space-y-2">
-                  <BackLink onClick={() => setStep(0)} />
+                  <StepHeader onBack={() => setStep(0)} parts={chosenSoFar} />
                   <p className="text-base font-semibold text-center mb-1" style={{ color: COLOR.ink }}>
                     Pick your flavor
                   </p>
@@ -933,7 +961,7 @@ export default function AcaiControlApp() {
                   removing one is a decision of its own, before anything is charged. */}
               {step === 2 && (
                 <div className="space-y-3">
-                  <BackLink onClick={() => setStep(1)} />
+                  <StepHeader onBack={() => setStep(1)} parts={chosenSoFar} />
                   <p className="text-base font-semibold text-center" style={{ color: COLOR.ink }}>
                     Included toppings
                   </p>
@@ -982,7 +1010,7 @@ export default function AcaiControlApp() {
                   settled first and nothing charged shares a page with them. */}
               {step === 3 && (
                 <div className="space-y-3">
-                  <BackLink onClick={() => setStep(2)} />
+                  <StepHeader onBack={() => setStep(2)} parts={chosenSoFar} />
                   <p className="text-base font-semibold text-center" style={{ color: COLOR.ink }}>
                     Add extras
                   </p>
