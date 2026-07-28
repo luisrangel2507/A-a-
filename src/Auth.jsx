@@ -156,10 +156,107 @@ export function SignInScreen({ onSignedIn }) {
 }
 
 /**
+ * The shop's sales tax rate. There is no sensible default — the rate depends on
+ * the state, county and city, and prepared food is often rated apart from
+ * groceries — so it starts at none and this is where the owner enters theirs.
+ */
+function SalesTaxCard({ rate, onSave }) {
+  const [text, setText] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [error, setError] = useState(null);
+  const [saved, setSaved] = useState(false);
+
+  function start() {
+    setText(rate > 0 ? String(Number((rate * 100).toFixed(4))) : "");
+    setError(null);
+    setSaved(false);
+    setEditing(true);
+  }
+
+  async function submit(e) {
+    e.preventDefault();
+    const percent = Number(String(text).trim().replace("%", ""));
+    if (!Number.isFinite(percent) || percent < 0 || percent > 25) {
+      setError("Enter the rate as a percentage, for example 8.25.");
+      return;
+    }
+    await onSave(percent / 100);
+    setEditing(false);
+    setSaved(true);
+  }
+
+  return (
+    <div
+      className="rounded-2xl p-4"
+      style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}
+    >
+      <p className="text-base font-semibold" style={{ color: COLOR.ink }}>
+        Sales tax
+      </p>
+
+      {editing ? (
+        <form onSubmit={submit} className="mt-2 space-y-2">
+          <Field
+            label="Rate (%)"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            inputMode="decimal"
+            placeholder="8.25"
+            hint="Your state's Department of Revenue publishes the combined rate for your address. Prepared food is often rated separately from groceries."
+            autoFocus
+          />
+          <Notice>{error}</Notice>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setEditing(false)}
+              className="px-2 text-sm font-medium"
+              style={{ color: COLOR.inkSoft }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 rounded-xl py-2.5 text-sm font-semibold"
+              style={{ background: COLOR.kiwi, color: "#fff" }}
+            >
+              Save
+            </button>
+          </div>
+        </form>
+      ) : (
+        <>
+          <p className="font-mono-num mt-1 text-xl font-semibold" style={{ color: COLOR.acai }}>
+            {rate > 0 ? `${Number((rate * 100).toFixed(4))}%` : "Not set"}
+          </p>
+          <p className="mt-1 text-sm" style={{ color: COLOR.inkSoft }}>
+            {rate > 0
+              ? "Added on top of menu prices at checkout."
+              : "No tax is being charged. Menu prices are what customers pay."}
+          </p>
+          {saved && (
+            <p className="mt-2 text-sm" style={{ color: COLOR.kiwi }}>
+              Saved. It applies to the next order.
+            </p>
+          )}
+          <button
+            onClick={start}
+            className="mt-3 rounded-xl px-3 py-2 text-sm font-semibold"
+            style={{ background: COLOR.acaiPale, color: COLOR.acai }}
+          >
+            {rate > 0 ? "Change rate" : "Set the rate"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
  * Staff list, owner only. Accounts are deactivated rather than deleted, so past
  * sales keep showing who rang them up.
  */
-export function TeamPanel({ me, onSignOut }) {
+export function TeamPanel({ me, onSignOut, taxRate, onSaveTaxRate }) {
   const [users, setUsers] = useState(null);
   const [error, setError] = useState(null);
   const [adding, setAdding] = useState(false);
@@ -244,6 +341,10 @@ export function TeamPanel({ me, onSignOut }) {
         </button>
       </div>
 
+
+      {isOwner && (
+        <SalesTaxCard rate={taxRate} onSave={onSaveTaxRate} />
+      )}
       {!isOwner && (
         <p className="px-1 text-sm" style={{ color: COLOR.inkSoft }}>
           Only the owner can manage staff accounts.

@@ -72,6 +72,12 @@ const TOPPING_PRICE = 0.99;
 const CATEGORY_ORDER = ["Dairy", "Nuts", "Fruits", "Others"];
 const STEP_LABELS = ["Size", "Flavor", "Toppings", "Review"];
 
+// 0.0825 reads as 8.25%, and 0.08 as 8% — no trailing zeros to misread as a typo.
+const formatRate = (rate) =>
+  `${Number((rate * 100).toFixed(4))
+    .toString()
+    .replace(/\.?0+$/, (m) => (m.includes(".") ? "" : m))}%`;
+
 const money = (n) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n || 0);
 
@@ -186,6 +192,10 @@ function defaultMenu() {
     toppings,
     toppingPrice: TOPPING_PRICE,
     includedToppingIds: ["granola", "strawberry", "banana", "peanut_butter"],
+    // Sales tax is local — state, county and city each set their own, and prepared
+    // food is often rated differently from groceries. There is no sane default to
+    // guess, so it starts at none and the owner enters the shop's rate.
+    taxRate: 0,
   };
 }
 
@@ -573,7 +583,13 @@ export default function AcaiControlApp() {
     setCart((c) => c.filter((i) => i.cartId !== cartId));
   }
 
-  const cartTotal = cart.reduce((s, i) => s + i.price, 0);
+  // US menus quote prices before tax and add it at the register, so the bowl
+  // prices stay as listed and tax lands on the subtotal. Rounded to the cent once,
+  // on the whole order, rather than per bowl.
+  const taxRate = Number(menu.taxRate) || 0;
+  const cartSubtotal = cart.reduce((s, i) => s + i.price, 0);
+  const cartTax = Math.round(cartSubtotal * taxRate * 100) / 100;
+  const cartTotal = cartSubtotal + cartTax;
 
   async function checkout() {
     if (cart.length === 0) return;
@@ -608,6 +624,10 @@ export default function AcaiControlApp() {
         size: item.size,
         toppingIds: item.toppingIds,
         price: item.price,
+        // The rate in force at the time, and this bowl's share of the order's tax:
+        // rates change, and a sale has to stay explainable after they do.
+        taxRate,
+        tax: cartSubtotal > 0 ? Math.round((cartTax * item.price / cartSubtotal) * 100) / 100 : 0,
         // Who rang it up, taken from the signed-in session rather than typed in.
         userId: me?.id || null,
         userName: me?.name || null,
@@ -617,6 +637,19 @@ export default function AcaiControlApp() {
     setCart([]);
     setSaving(false);
     showToast(`Charged ${money(cartTotal)}`);
+  }
+
+  // The rate lives with the menu, so every register picks it up from the shared
+  // database rather than each device keeping its own idea of the tax.
+  async function saveTaxRate(rate) {
+    const next = { ...menu, taxRate: rate };
+    setMenu(next);
+    try {
+      await storage.set(STORAGE_MENU, JSON.stringify(next));
+      showToast(rate > 0 ? `Sales tax set to ${formatRate(rate)}` : "Sales tax turned off");
+    } catch (e) {
+      handleStorageError(e, "Couldn't save the tax rate. Try again.");
+    }
   }
 
   async function restock() {
@@ -644,7 +677,12 @@ export default function AcaiControlApp() {
   const report = useMemo(() => {
     const today = todayKey();
     const todaySales = sales.filter((s) => s.date.slice(0, 10) === today);
+    // Takings split three ways, because tax collected is not the shop's money —
+    // it is held for the state. Sales recorded before tax was configured have no
+    // tax field and count as zero.
     const todayTotal = todaySales.reduce((s, i) => s + i.price, 0);
+    const todayTax = todaySales.reduce((s, i) => s + (i.tax || 0), 0);
+    const todayCollected = todayTotal + todayTax;
 
     const byDay = {};
     sales.forEach((s) => {
@@ -687,7 +725,17 @@ export default function AcaiControlApp() {
     });
     const people = Object.values(byPerson).sort((a, b) => b.total - a.total);
 
-    return { todayTotal, todayCount: todaySales.length, days, topProduct, topTopping, lowStock, people };
+    return {
+      todayTotal,
+      todayTax,
+      todayCollected,
+      todayCount: todaySales.length,
+      days,
+      topProduct,
+      topTopping,
+      lowStock,
+      people,
+    };
   }, [sales, ingredients, menu]);
 
   const toppingsByCategory = useMemo(() => {
@@ -1087,11 +1135,31 @@ export default function AcaiControlApp() {
                       </div>
                     </div>
                   ))}
-                  <div className="border-t pt-2 mt-2 flex items-center justify-between" style={{ borderColor: COLOR.line }}>
-                    <span className="text-base font-semibold">Total</span>
-                    <span className="font-mono-num text-xl font-semibold" style={{ color: COLOR.acai }}>
-                      {money(cartTotal)}
-                    </span>
+                  <div className="mt-2 space-y-1 border-t pt-2" style={{ borderColor: COLOR.line }}>
+                    {taxRate > 0 && (
+                      <>
+                        <div className="flex items-baseline justify-between text-sm">
+                          <span style={{ color: COLOR.inkSoft }}>Subtotal</span>
+                          <span className="font-mono-num" style={{ color: COLOR.inkSoft }}>
+                            {money(cartSubtotal)}
+                          </span>
+                        </div>
+                        <div className="flex items-baseline justify-between text-sm">
+                          <span style={{ color: COLOR.inkSoft }}>
+                            Sales tax ({formatRate(taxRate)})
+                          </span>
+                          <span className="font-mono-num" style={{ color: COLOR.inkSoft }}>
+                            {money(cartTax)}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="text-base font-semibold">Total</span>
+                      <span className="font-mono-num text-xl font-semibold" style={{ color: COLOR.acai }}>
+                        {money(cartTotal)}
+                      </span>
+                    </div>
                   </div>
                   <button
                     onClick={checkout}
@@ -1179,6 +1247,12 @@ export default function AcaiControlApp() {
                 <p className="text-sm" style={{ color: "#D9B9CC" }}>Sales today</p>
                 <p className="font-mono-num text-xl font-semibold mt-1" style={{ color: "#fff" }}>{money(report.todayTotal)}</p>
                 <p className="text-sm mt-0.5" style={{ color: "#D9B9CC" }}>{report.todayCount} bowls</p>
+                {report.todayTax > 0 && (
+                  <p className="mt-2 text-xs leading-snug" style={{ color: "#D9B9CC" }}>
+                    before tax · took{" "}
+                    <span className="font-mono-num">{money(report.todayCollected)}</span>
+                  </p>
+                )}
               </div>
               <div className="rounded-2xl p-4" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
                 <p className="text-sm" style={{ color: COLOR.inkSoft }}>Best seller</p>
@@ -1203,6 +1277,22 @@ export default function AcaiControlApp() {
                 </ResponsiveContainer>
               </div>
             </div>
+
+            {report.todayTax > 0 && (
+              <div
+                className="rounded-2xl p-4"
+                style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}
+              >
+                <p className="text-base font-semibold">Sales tax collected today</p>
+                <p className="font-mono-num mt-1 text-xl font-semibold" style={{ color: COLOR.acai }}>
+                  {money(report.todayTax)}
+                </p>
+                <p className="mt-1 text-sm" style={{ color: COLOR.inkSoft }}>
+                  Held for the state at {formatRate(taxRate)} — not part of the
+                  {" "}{money(report.todayTotal)} above.
+                </p>
+              </div>
+            )}
 
             <div className="rounded-2xl p-4" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
               <p className="text-base font-semibold mb-3">Sold by</p>
@@ -1250,7 +1340,14 @@ export default function AcaiControlApp() {
           </div>
         )}
 
-        {tab === "equipo" && <TeamPanel me={me} onSignOut={signOut} />}
+        {tab === "equipo" && (
+          <TeamPanel
+            me={me}
+            onSignOut={signOut}
+            taxRate={taxRate}
+            onSaveTaxRate={saveTaxRate}
+          />
+        )}
       </div>
 
       {/* Bottom nav */}

@@ -122,6 +122,21 @@ Both close the same way: move sales and inventory out of the blob into their own
 tables and endpoints. Worth doing if these ever need to settle a dispute rather
 than keep honest people out of the wrong screen.
 
+## Sales tax
+
+US menus quote prices before tax, so the bowl prices stay as listed and tax is
+added at checkout. The rate is whatever the shop's address is subject to —
+state, county and city each set their own, and prepared food is frequently rated
+apart from groceries — so there is no default worth guessing: it starts at none
+and the owner sets it under **Team → Sales tax**. Until then nothing is charged
+and the menu price is what the customer pays.
+
+Each sale stores the rate that was in force and its share of the order's tax, so
+a rate change later does not rewrite what older sales were charged. Reports keep
+the two apart: **Sales today** is takings before tax, with the amount actually
+taken beside it, and **Sales tax collected today** is the separate figure — that
+money is held for the state, not revenue.
+
 ## Flavor and topping photos
 
 `src/assets/flavors/` and `src/assets/toppings/` are picked up by filename: drop
