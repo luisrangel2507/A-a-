@@ -800,7 +800,7 @@ export default function AcaiControlApp() {
       {typography}
 
       {/* Header */}
-      <div className="px-5 pt-6 pb-4 relative" style={{ background: COLOR.acai }}>
+      <div className="pad-status-bar relative px-5 pb-4" style={{ background: COLOR.acai }}>
         <h1 className="font-display text-2xl" style={{ color: "#F7ECF3" }}>
           Quick Açaí
         </h1>
@@ -1351,7 +1351,7 @@ export default function AcaiControlApp() {
       </div>
 
       {/* Bottom nav */}
-      <div className="fixed bottom-0 left-0 right-0 flex max-w-md mx-auto w-full" style={{ background: COLOR.card, borderTop: `1px solid ${COLOR.line}` }}>
+      <div className="pad-home-indicator fixed bottom-0 left-0 right-0 mx-auto flex w-full max-w-md" style={{ background: COLOR.card, borderTop: `1px solid ${COLOR.line}` }}>
         <TabButton active={tab === "pos"} onClick={() => setTab("pos")} icon={ShoppingBag} label="Sales" />
         {showInventory && (
           <TabButton active={tab === "inventario"} onClick={() => setTab("inventario")} icon={Package} label="Inventory" />

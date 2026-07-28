@@ -83,7 +83,13 @@ export function SignInScreen({ onSignedIn }) {
   return (
     <div
       className="flex min-h-screen flex-col items-center justify-center px-5"
-      style={{ background: COLOR.bg, fontFamily: "'Space Grotesk', sans-serif" }}
+      style={{
+        background: COLOR.bg,
+        fontFamily: "'Space Grotesk', sans-serif",
+        // Keeps the form clear of the status bar and home indicator in standalone mode.
+        paddingTop: "var(--inset-top)",
+        paddingBottom: "var(--inset-bottom)",
+      }}
     >
       <div className="w-full" style={{ maxWidth: 380 }}>
         {/* The sign-in screen is the one place with room for the full lockup —
