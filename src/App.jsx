@@ -70,7 +70,26 @@ const STORAGE_SHOP = "shop-data-v3";
 const STORAGE_MENU = "menu-config-v3";
 const TOPPING_PRICE = 0.99;
 const CATEGORY_ORDER = ["Dairy", "Nuts", "Fruits", "Others"];
-const STEP_LABELS = ["Size", "Flavor", "Included", "Extras", "Review"];
+// The heading a category gets when it has the screen to itself; "Add others" does
+// not read as English, and the picker's own labels stay short for the dots.
+const CATEGORY_TITLE = {
+  Dairy: "Dairy",
+  Nuts: "Nuts",
+  Fruits: "Fruit",
+  Others: "Other toppings",
+};
+
+// The order of the wizard, as data. Each paid category is a screen of its own, so
+// the list is long enough that hard-coded step numbers would be a liability —
+// inserting one screen would silently renumber every branch after it.
+const STEPS = [
+  { key: "size", label: "Size" },
+  { key: "flavor", label: "Flavor" },
+  { key: "included", label: "Included" },
+  ...CATEGORY_ORDER.map((cat) => ({ key: `cat:${cat}`, label: cat, category: cat })),
+  { key: "review", label: "Review" },
+];
+const stepIndex = (key) => STEPS.findIndex((s) => s.key === key);
 
 // 0.0825 reads as 8.25%, and 0.08 as 8% — no trailing zeros to misread as a typo.
 const formatRate = (rate) =>
@@ -232,6 +251,49 @@ function StepHeader({ onBack, parts = [] }) {
   );
 }
 
+// Nothing advances without this, and a long category pushes it past the fold, so it
+// rides the bottom of the screen instead of waiting at the end of the list. Sticky
+// rather than fixed: it only lifts when it would otherwise be off-screen, and it
+// stays inside the card, so it is never floating over the order below.
+function ContinueButton({ onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="sticky z-10 mt-1 w-full rounded-xl py-3 text-base font-semibold shadow-lg"
+      style={{
+        background: COLOR.acai,
+        color: "#fff",
+        bottom: "calc(var(--inset-bottom) + 5.5rem)",
+      }}
+    >
+      Continue
+    </button>
+  );
+}
+
+// With each paid category on its own screen, what was chosen two screens ago is no
+// longer on the page. This carries it forward, so the bowl being built is readable
+// without stepping back through the wizard to check.
+function ChosenToppings({ included, extras }) {
+  if (included.length === 0 && extras.length === 0) return null;
+  return (
+    <div className="rounded-xl px-3 py-2" style={{ background: COLOR.bg, border: `1px solid ${COLOR.line}` }}>
+      {included.length > 0 && (
+        <p className="text-xs" style={{ color: COLOR.inkSoft }}>
+          <span className="font-semibold" style={{ color: COLOR.kiwi }}>Included:</span>{" "}
+          {included.join(", ")}
+        </p>
+      )}
+      {extras.length > 0 && (
+        <p className="text-xs" style={{ color: COLOR.inkSoft }}>
+          <span className="font-semibold" style={{ color: COLOR.acai }}>Extras:</span>{" "}
+          {extras.join(", ")}
+        </p>
+      )}
+    </div>
+  );
+}
+
 // Going back belongs at the top of a step, above what it undoes. Down beside the
 // primary action it sat under the prices, one slip away from the button that
 // commits them.
@@ -282,10 +344,10 @@ function ProgressSteps({ step, onJump }) {
   return (
     <div className="mb-4">
       <p className="text-sm font-semibold text-center mb-2" style={{ color: COLOR.acai }}>
-        Step {step + 1} of {STEP_LABELS.length} — {STEP_LABELS[step]}
+        Step {step + 1} of {STEPS.length} — {STEPS[step].label}
       </p>
       <div className="flex items-center gap-1.5">
-        {STEP_LABELS.map((label, i) => (
+        {STEPS.map(({ label }, i) => (
           <button
             key={label}
             onClick={() => onJump(i)}
@@ -578,6 +640,17 @@ export default function AcaiControlApp() {
   ].filter(Boolean);
   const builderPrice = (sizePrice(builder.size) || 0) + extraCount * menu.toppingPrice;
 
+  // Which screen of the wizard is on, by name rather than by number — the paid
+  // categories each get one, so positions shift whenever the menu's categories do.
+  const stepKey = STEPS[step]?.key || STEPS[0].key;
+  const stepCategory = STEPS[step]?.category;
+  const includedNames = menu.toppings
+    .filter((t) => menu.includedToppingIds.includes(t.id) && builder.toppingIds.includes(t.id))
+    .map((t) => t.name);
+  const extraNames = menu.toppings
+    .filter((t) => !menu.includedToppingIds.includes(t.id) && builder.toppingIds.includes(t.id))
+    .map((t) => t.name);
+
   function toggleTopping(id) {
     setBuilder((b) => {
       const has = b.toppingIds.includes(id);
@@ -587,7 +660,7 @@ export default function AcaiControlApp() {
 
   function resetBuilder() {
     setBuilder({ productId: null, size: null, toppingIds: [...menu.includedToppingIds] });
-    setStep(0);
+    setStep(stepIndex("size"));
   }
 
   function addToCart() {
@@ -861,27 +934,35 @@ export default function AcaiControlApp() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto pb-24 px-4 pt-4 max-w-md w-full mx-auto">
+      {/* The page itself scrolls — this used to carry overflow-y-auto, which made it
+          the scroll container on paper while the shell's min-h-screen let it grow
+          past the viewport instead, so it never scrolled and anything sticky inside
+          had nothing to stick to. */}
+      <div className="flex-1 pb-24 px-4 pt-4 max-w-md w-full mx-auto">
         {tab === "pos" && (
           <div className="space-y-4">
             <div className="rounded-2xl p-4" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
               {/* Hidden while picking a flavour: the bowl is necessarily empty at that
                   point, and the nine choices need the whole screen to fit without
-                  scrolling. */}
-              {step !== 1 && (
+                  scrolling. Half size on the paid-topping screens, where it is four
+                  screens in a row of the same picture standing between the register
+                  and the Continue button — small enough to leave room for the
+                  toppings, still there to show one landing in the bowl. */}
+              {stepKey !== "flavor" && (
               <BowlPreview
                 productId={currentProduct?.id}
                 toppingIds={builder.toppingIds}
                 includedToppingIds={menu.includedToppingIds}
                 toppings={menu.toppings}
                 ingredients={ingredients}
+                maxWidth={stepCategory ? 124 : 236}
               />
               )}
 
               <ProgressSteps step={step} onJump={setStep} />
 
-              {/* Step 1: Size */}
-              {step === 0 && (
+              {/* Size */}
+              {stepKey === "size" && (
                 <div className="space-y-2">
                   <p className="text-base font-semibold text-center mb-1" style={{ color: COLOR.ink }}>
                     Choose a size
@@ -891,7 +972,7 @@ export default function AcaiControlApp() {
                       key={sz}
                       onClick={() => {
                         setBuilder((b) => ({ ...b, size: sz }));
-                        setStep(1);
+                        setStep(stepIndex("flavor"));
                       }}
                       className="w-full flex items-center justify-between p-4 rounded-2xl border-2 capitalize"
                       style={{
@@ -908,13 +989,14 @@ export default function AcaiControlApp() {
                 </div>
               )}
 
-              {/* Step 2: Flavor */}
-              {step === 1 && (
+              {/* Flavor */}
+              {stepKey === "flavor" && (
                 <div className="space-y-2">
-                  <StepHeader onBack={() => setStep(0)} parts={chosenSoFar} />
-                  <p className="text-base font-semibold text-center mb-1" style={{ color: COLOR.ink }}>
-                    Pick your flavor
-                  </p>
+                  <StepHeader onBack={() => setStep(stepIndex("size"))} parts={chosenSoFar} />
+                  {/* No heading here, unlike every other step: the progress line above
+                      already reads "Step 2 of 8 — Flavor", and on a 320px screen those
+                      28px are the difference between all nine flavours being on the
+                      page and the last row falling under the fold. */}
                   {/* Two columns, and no emoji: nine flavours in one column ran past the
                       fold, and hunting for one by scrolling costs more than the picture
                       of a sorbet was worth. A real photo still shows when there is one. */}
@@ -927,7 +1009,7 @@ export default function AcaiControlApp() {
                           key={p.id}
                           onClick={() => {
                             setBuilder((b) => ({ ...b, productId: p.id }));
-                            setStep(2);
+                            setStep(stepIndex("included"));
                           }}
                           className="flex items-center gap-2 rounded-xl border-2 px-2.5 py-1.5 text-left transition"
                           style={{
@@ -957,11 +1039,11 @@ export default function AcaiControlApp() {
                 </div>
               )}
 
-              {/* Step 3: the four that come with the bowl, alone on the screen so
-                  removing one is a decision of its own, before anything is charged. */}
-              {step === 2 && (
+              {/* The four that come with the bowl, alone on the screen so removing
+                  one is a decision of its own, before anything is charged. */}
+              {stepKey === "included" && (
                 <div className="space-y-3">
-                  <StepHeader onBack={() => setStep(1)} parts={chosenSoFar} />
+                  <StepHeader onBack={() => setStep(stepIndex("flavor"))} parts={chosenSoFar} />
                   <p className="text-base font-semibold text-center" style={{ color: COLOR.ink }}>
                     Included toppings
                   </p>
@@ -996,35 +1078,30 @@ export default function AcaiControlApp() {
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => setStep(3)}
-                    className="mt-1 w-full rounded-xl py-3 text-base font-semibold"
-                    style={{ background: COLOR.acai, color: "#fff" }}
-                  >
-                    Continue
-                  </button>
+                  <ContinueButton onClick={() => setStep(step + 1)} />
                 </div>
               )}
 
-              {/* Step 4: the paid extras, on their own screen so the free four are
-                  settled first and nothing charged shares a page with them. */}
-              {step === 3 && (
+              {/* One paid category per screen. Dairy is settled before nuts are
+                  offered, nuts before fruit, so nothing is decided in passing while
+                  scrolling toward the next thing. */}
+              {stepCategory && (
                 <div className="space-y-3">
-                  <StepHeader onBack={() => setStep(2)} parts={chosenSoFar} />
+                  <StepHeader onBack={() => setStep(step - 1)} parts={chosenSoFar} />
                   <p className="text-base font-semibold text-center" style={{ color: COLOR.ink }}>
-                    Add extras
+                    Add {CATEGORY_TITLE[stepCategory].toLowerCase()}
                   </p>
 
                   <div className="rounded-xl px-3 py-2.5" style={{ background: COLOR.acaiPale }}>
                     <p className="text-sm font-semibold" style={{ color: COLOR.acai }}>
-                      Everything below costs {money(menu.toppingPrice)} each
+                      {money(menu.toppingPrice)} each — nothing here is free
                     </p>
                     <p className="text-xs" style={{ color: COLOR.acaiLight }}>
                       {extraCount === 0 ? (
-                        "Dairy too — nothing here is free."
+                        "Skip with Continue if they don't want any."
                       ) : (
                         <>
-                          {extraCount} added ·{" "}
+                          {extraCount} extra{extraCount === 1 ? "" : "s"} so far ·{" "}
                           <span className="font-mono-num font-semibold">
                             {money(extraCount * menu.toppingPrice)}
                           </span>
@@ -1033,57 +1110,48 @@ export default function AcaiControlApp() {
                     </p>
                   </div>
 
-                  {CATEGORY_ORDER.map((cat) => (
-                    <div key={cat}>
-                      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide" style={{ color: COLOR.inkSoft }}>
-                        {cat}
-                        <span className="font-mono-num normal-case tracking-normal">
-                          {" · "}
-                          {money(menu.toppingPrice)} each
-                        </span>
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {(toppingsByCategory[cat] || []).map((t) => {
-                          const on = builder.toppingIds.includes(t.id);
-                          const ing = ingredients.find((i) => i.id === t.ingredientId);
-                          const out = ing && ing.stock <= 0;
-                          return (
-                            <button
-                              key={t.id}
-                              disabled={out}
-                              onClick={() => toggleTopping(t.id)}
-                              className="px-3 py-2 rounded-full text-sm font-medium border flex items-center gap-1.5"
-                              style={{
-                                borderColor: on ? COLOR.acai : COLOR.line,
-                                background: on ? COLOR.acai : "transparent",
-                                color: on ? "#fff" : out ? "#B9AEB4" : COLOR.ink,
-                                opacity: out ? 0.5 : 1,
-                              }}
-                            >
-                              <ToppingSwatch toppingId={t.id} color={ing?.color} />
-                              {t.name}
-                              {out && " · out of stock"}
-                            </button>
-                          );
-                        })}
-                      </div>
+                  {(toppingsByCategory[stepCategory] || []).length === 0 ? (
+                    <p className="text-sm" style={{ color: COLOR.inkSoft }}>
+                      Nothing on the menu in this category.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {toppingsByCategory[stepCategory].map((t) => {
+                        const on = builder.toppingIds.includes(t.id);
+                        const ing = ingredients.find((i) => i.id === t.ingredientId);
+                        const out = ing && ing.stock <= 0;
+                        return (
+                          <button
+                            key={t.id}
+                            disabled={out}
+                            onClick={() => toggleTopping(t.id)}
+                            className="px-3 py-2 rounded-full text-sm font-medium border flex items-center gap-1.5"
+                            style={{
+                              borderColor: on ? COLOR.acai : COLOR.line,
+                              background: on ? COLOR.acai : "transparent",
+                              color: on ? "#fff" : out ? "#B9AEB4" : COLOR.ink,
+                              opacity: out ? 0.5 : 1,
+                            }}
+                          >
+                            <ToppingSwatch toppingId={t.id} color={ing?.color} />
+                            {t.name}
+                            {out && " · out of stock"}
+                          </button>
+                        );
+                      })}
                     </div>
-                  ))}
+                  )}
 
-                  <button
-                    onClick={() => setStep(4)}
-                    className="mt-1 w-full rounded-xl py-3 text-base font-semibold"
-                    style={{ background: COLOR.acai, color: "#fff" }}
-                  >
-                    Continue
-                  </button>
+                  <ChosenToppings included={includedNames} extras={extraNames} />
+
+                  <ContinueButton onClick={() => setStep(step + 1)} />
                 </div>
               )}
 
-              {/* Step 5: Review */}
-              {step === 4 && (
+              {/* Review */}
+              {stepKey === "review" && (
                 <div className="space-y-3">
-                  <BackLink onClick={() => setStep(3)} />
+                  <BackLink onClick={() => setStep(step - 1)} />
                   <p className="text-base font-semibold text-center" style={{ color: COLOR.ink }}>
                     Review your bowl
                   </p>

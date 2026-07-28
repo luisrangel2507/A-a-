@@ -16,6 +16,24 @@ All of this lives in `defaultMenu()` and `defaultIngredients()` in
 `src/App.jsx` — edit those two functions to change prices, flavors, or
 toppings.
 
+## Taking an order
+
+The register walks one decision per screen, and nothing advances on its own — each
+screen ends in **Continue**:
+
+1. **Size** → 2. **Flavor** → 3. **Included** (the four free toppings, tap to remove)
+→ 4. **Dairy** → 5. **Nuts** → 6. **Fruit** → 7. **Other toppings** → 8. **Review**.
+
+The four paid categories each get a screen to themselves so a customer is asked one
+question at a time and nothing is added while scrolling past it. Every screen carries
+the choices already made — size and flavor in the chip beside **Back**, toppings in
+the summary above **Continue** — so the bowl being built is readable without stepping
+back. Back walks one screen at a time; the progress dots jump anywhere.
+
+The wizard is data, not hard-coded screen numbers: `STEPS` in `src/App.jsx` is built
+from `CATEGORY_ORDER`, so adding or reordering a paid category changes the flow
+without renumbering anything.
+
 ## Local development
 
 Requires a Postgres database. Point `DATABASE_URL` at one — either a local
