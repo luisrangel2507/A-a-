@@ -269,6 +269,100 @@ function StepHeader({ onBack, parts = [] }) {
   );
 }
 
+// A receipt covers one order — everything charged in a single checkout, which is
+// what the customer handed over money for. Laid out to survive a print: no colour
+// worth losing, and the print stylesheet in index.css hides the rest of the app so
+// a phone or a till printer gets the slip and nothing else.
+function Receipt({ order, menu, onClose }) {
+  const line = (label, value, strong) => (
+    <div className="flex items-baseline justify-between">
+      <span style={{ fontWeight: strong ? 600 : 400 }}>{label}</span>
+      <span className="font-mono-num" style={{ fontWeight: strong ? 600 : 400 }}>{money(value)}</span>
+    </div>
+  );
+  const paidLabel = order.payment === "cash" ? "Cash" : order.payment === "card" ? "Card" : "—";
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center px-4 py-6" style={{ background: "rgba(43,18,36,0.45)" }}>
+      <div className="flex max-h-full w-full max-w-sm flex-col rounded-2xl" style={{ background: COLOR.card }}>
+        <div className="no-print flex items-center justify-between px-4 pt-4">
+          <p className="text-base font-semibold" style={{ color: COLOR.ink }}>Receipt</p>
+          <button onClick={onClose} aria-label="Close" className="rounded-lg p-1">
+            <X size={18} color={COLOR.inkSoft} />
+          </button>
+        </div>
+
+        <div className="receipt-sheet overflow-y-auto px-5 py-4 text-sm" style={{ color: "#000" }}>
+          <p className="font-display text-center text-xl" style={{ color: "#000" }}>Quick Açaí</p>
+          <p className="mt-0.5 text-center text-xs">
+            {new Date(order.at).toLocaleString("en-US", {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
+          </p>
+          {order.userName && <p className="text-center text-xs">Served by {order.userName}</p>}
+
+          <div className="my-3 space-y-2 border-y py-3" style={{ borderColor: "#999" }}>
+            {order.bowls.map((b) => {
+              const extras = (b.toppingIds || [])
+                .filter((id) => !menu.includedToppingIds.includes(id))
+                .map((id) => menu.toppings.find((t) => t.id === id)?.name)
+                .filter(Boolean);
+              return (
+                <div key={b.id} style={{ opacity: b.voided ? 0.5 : 1 }}>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span style={{ textDecoration: b.voided ? "line-through" : "none" }}>
+                      {b.productName} · <span className="capitalize">{b.size}</span>
+                    </span>
+                    <span className="font-mono-num" style={{ textDecoration: b.voided ? "line-through" : "none" }}>
+                      {money(b.price)}
+                    </span>
+                  </div>
+                  {extras.length > 0 && (
+                    <p className="text-xs" style={{ color: "#444" }}>+ {extras.join(", ")}</p>
+                  )}
+                  {b.voided && <p className="text-xs">VOIDED</p>}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="space-y-1">
+            {line("Subtotal", order.subtotal)}
+            {order.tax > 0 && line(`Sales tax${order.bowls[0]?.taxRate ? ` (${formatRate(order.bowls[0].taxRate)})` : ""}`, order.tax)}
+            {order.tip > 0 && line("Tip", order.tip)}
+            <div className="border-t pt-1" style={{ borderColor: "#999" }}>
+              {line("Total", order.gross, true)}
+            </div>
+            <div className="flex items-baseline justify-between pt-1">
+              <span>Paid with</span>
+              <span>{paidLabel}</span>
+            </div>
+          </div>
+
+          <p className="mt-4 text-center text-xs">Thank you!</p>
+        </div>
+
+        <div className="no-print flex gap-2 px-4 pb-4 pt-2">
+          <button
+            onClick={onClose}
+            className="flex-1 rounded-xl border py-2.5 text-sm font-semibold"
+            style={{ borderColor: COLOR.line, color: COLOR.inkSoft }}
+          >
+            Close
+          </button>
+          <button
+            onClick={() => window.print()}
+            className="flex-1 rounded-xl py-2.5 text-sm font-semibold"
+            style={{ background: COLOR.acai, color: "#fff" }}
+          >
+            Print
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Taking the money is a screen of its own, over the register rather than beside it:
 // the tip has to be asked for before the card is run, and how they paid has to be
 // recorded or the drawer cannot be settled at close.
@@ -682,6 +776,7 @@ export default function AcaiControlApp() {
   const [cashGiven, setCashGiven] = useState("");
   // Voiding puts money and stock back, so it asks first.
   const [voiding, setVoiding] = useState(null);
+  const [receipt, setReceipt] = useState(null);
   const cartSectionRef = useRef(null);
 
   useEffect(() => {
@@ -1062,8 +1157,35 @@ export default function AcaiControlApp() {
     });
     const people = Object.values(byPerson).sort((a, b) => b.total - a.total);
 
-    // Newest first: correcting a mistake means finding the sale you just rang up.
-    const todayLog = [...todayAll].sort((a, b) => b.date.localeCompare(a.date));
+    // Everything rung up in one checkout shares a timestamp, which is what makes an
+    // order an order — a receipt covers what the customer paid for in one go, not one
+    // bowl of three. Newest first: correcting a mistake means finding what you just
+    // rang up.
+    const byOrder = new Map();
+    todayAll.forEach((s) => {
+      const group = byOrder.get(s.date) || {
+        key: s.date,
+        at: s.date,
+        userName: s.userName,
+        payment: s.payment,
+        bowls: [],
+      };
+      group.bowls.push(s);
+      byOrder.set(s.date, group);
+    });
+    const todayLog = [...byOrder.values()]
+      .map((o) => {
+        const live = o.bowls.filter((b) => !b.voided);
+        return {
+          ...o,
+          subtotal: live.reduce((a, b) => a + b.price, 0),
+          tax: live.reduce((a, b) => a + (b.tax || 0), 0),
+          tip: live.reduce((a, b) => a + (b.tip || 0), 0),
+          gross: live.reduce((a, b) => a + b.price + (b.tax || 0) + (b.tip || 0), 0),
+          allVoided: live.length === 0,
+        };
+      })
+      .sort((a, b) => b.at.localeCompare(a.at));
 
     return {
       todayTotal,
@@ -1174,6 +1296,10 @@ export default function AcaiControlApp() {
           {toast.isError ? <AlertTriangle size={14} /> : <Check size={14} />}
           {toast.msg}
         </div>
+      )}
+
+      {receipt && (
+        <Receipt order={receipt} menu={menu} onClose={() => setReceipt(null)} />
       )}
 
       {voiding && (
@@ -1745,62 +1871,77 @@ export default function AcaiControlApp() {
               {report.todayLog.length === 0 ? (
                 <p className="text-sm" style={{ color: COLOR.inkSoft }}>Nothing rung up yet today.</p>
               ) : (
-                <div className="space-y-2">
-                  {report.todayLog.map((s) => {
-                    const gross = s.price + (s.tax || 0) + (s.tip || 0);
-                    const mine = canVoidSale(me?.role, s, me?.id);
-                    return (
-                      <div
-                        key={s.id}
-                        className="flex items-start justify-between gap-2 border-b pb-2 last:border-0 last:pb-0"
-                        style={{ borderColor: COLOR.line, opacity: s.voided ? 0.55 : 1 }}
-                      >
-                        <div className="min-w-0">
-                          <p
-                            className="truncate text-sm font-medium"
-                            style={{
-                              color: COLOR.ink,
-                              textDecoration: s.voided ? "line-through" : "none",
-                            }}
-                          >
-                            {s.productName} · <span className="capitalize">{s.size}</span>
-                          </p>
-                          <p className="text-xs" style={{ color: COLOR.inkSoft }}>
-                            {new Date(s.date).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-                            {s.userName ? ` · ${s.userName}` : ""}
-                            {s.payment ? ` · ${s.payment === "cash" ? "Cash" : "Card"}` : ""}
-                            {s.tip > 0 ? ` · ${money(s.tip)} tip` : ""}
-                          </p>
-                          {s.voided && (
-                            <p className="text-xs font-medium" style={{ color: COLOR.alert }}>
-                              Voided{s.voidedByName ? ` by ${s.voidedByName}` : ""} — stock returned
-                            </p>
-                          )}
-                        </div>
+                <div className="space-y-3">
+                  {report.todayLog.map((order) => (
+                    <div
+                      key={order.key}
+                      className="border-b pb-3 last:border-0 last:pb-0"
+                      style={{ borderColor: COLOR.line, opacity: order.allVoided ? 0.55 : 1 }}
+                    >
+                      <div className="flex items-baseline justify-between gap-2">
+                        <p className="text-xs" style={{ color: COLOR.inkSoft }}>
+                          {new Date(order.at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                          {order.userName ? ` · ${order.userName}` : ""}
+                          {order.payment ? ` · ${order.payment === "cash" ? "Cash" : "Card"}` : ""}
+                        </p>
                         <div className="flex shrink-0 items-center gap-2">
-                          <span
-                            className="font-mono-num text-sm font-semibold"
-                            style={{
-                              color: COLOR.ink,
-                              textDecoration: s.voided ? "line-through" : "none",
-                            }}
-                          >
-                            {money(gross)}
+                          <span className="font-mono-num text-sm font-semibold" style={{ color: COLOR.ink }}>
+                            {money(order.gross)}
                           </span>
-                          {!s.voided && mine && (
-                            <button
-                              onClick={() => setVoiding(s)}
-                              disabled={saving}
-                              className="rounded-lg border px-2 py-1 text-xs font-medium"
-                              style={{ borderColor: COLOR.line, color: COLOR.alert }}
-                            >
-                              Void
-                            </button>
-                          )}
+                          <button
+                            onClick={() => setReceipt(order)}
+                            className="rounded-lg border px-2 py-1 text-xs font-medium"
+                            style={{ borderColor: COLOR.line, color: COLOR.inkSoft }}
+                          >
+                            Receipt
+                          </button>
                         </div>
                       </div>
-                    );
-                  })}
+                      <div className="mt-1 space-y-1">
+                        {order.bowls.map((s) => (
+                          <div key={s.id} className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p
+                                className="truncate text-sm font-medium"
+                                style={{
+                                  color: COLOR.ink,
+                                  textDecoration: s.voided ? "line-through" : "none",
+                                }}
+                              >
+                                {s.productName} · <span className="capitalize">{s.size}</span>
+                              </p>
+                              {s.voided && (
+                                <p className="text-xs font-medium" style={{ color: COLOR.alert }}>
+                                  Voided{s.voidedByName ? ` by ${s.voidedByName}` : ""} — stock returned
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex shrink-0 items-center gap-2">
+                              <span
+                                className="font-mono-num text-sm"
+                                style={{
+                                  color: COLOR.inkSoft,
+                                  textDecoration: s.voided ? "line-through" : "none",
+                                }}
+                              >
+                                {money(s.price)}
+                              </span>
+                              {!s.voided && canVoidSale(me?.role, s, me?.id) && (
+                                <button
+                                  onClick={() => setVoiding(s)}
+                                  disabled={saving}
+                                  className="rounded-lg border px-2 py-1 text-xs font-medium"
+                                  style={{ borderColor: COLOR.line, color: COLOR.alert }}
+                                >
+                                  Void
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
               {!canVoidAnySale(me?.role) && (

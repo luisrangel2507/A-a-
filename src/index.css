@@ -29,3 +29,37 @@ body {
 .pad-home-indicator {
   padding-bottom: var(--inset-bottom);
 }
+
+/* Printing a receipt should put the slip on the paper and nothing else — not the
+   register behind it, not the buttons that opened it. Hidden with visibility
+   rather than display so the receipt keeps its own layout instead of collapsing
+   into whatever is left. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .receipt-sheet,
+  .receipt-sheet * {
+    visibility: visible;
+  }
+
+  .receipt-sheet {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 0;
+    overflow: visible;
+    background: #fff;
+    color: #000;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  @page {
+    margin: 10mm;
+  }
+}
