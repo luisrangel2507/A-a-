@@ -39,7 +39,7 @@ function slugify(name, taken) {
 
 function Section({ title, hint, children, open, onToggle }) {
   return (
-    <div className="rounded-2xl" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
+    <div className="rounded-2xl" style={{ background: COLOR.card, boxShadow: COLOR.lift }}>
       <button
         onClick={onToggle}
         aria-expanded={open}
@@ -171,7 +171,7 @@ export default function MenuEditor({ menu, ingredients, onSave, saving }) {
       stock: 0,
       low: 1500,
       per: 220,
-      color: COLOR.acaiLight,
+      color: COLOR.forestSoft,
     };
     commit(
       {
@@ -182,7 +182,7 @@ export default function MenuEditor({ menu, ingredients, onSave, saving }) {
             id,
             name,
             baseIngredientId: baseId,
-            color: COLOR.acaiLight,
+            color: COLOR.forestSoft,
             sizes: { ...(first?.sizes || {}) },
             baseUnits: { ...(first?.baseUnits || { small: 1, medium: 1.4, large: 1.8 }) },
           },
@@ -217,7 +217,7 @@ export default function MenuEditor({ menu, ingredients, onSave, saving }) {
           per,
           stock: 0,
           low: newTopping.unit === "pcs" ? 15 : 500,
-          color: COLOR.acaiLight,
+          color: COLOR.forestSoft,
         },
       ],
       `${name} added — stock it under Inventory`
@@ -251,7 +251,7 @@ export default function MenuEditor({ menu, ingredients, onSave, saving }) {
   return (
     <div className="space-y-3">
       {error && (
-        <p className="flex items-start gap-2 rounded-xl p-3 text-sm" style={{ background: "#FBEAEC", color: COLOR.alert }}>
+        <p className="flex items-start gap-2 rounded-xl p-3 text-sm" style={{ background: COLOR.alertPale, color: COLOR.alert }}>
           <AlertTriangle size={16} className="mt-0.5 shrink-0" />
           <span>{error}</span>
         </p>
@@ -292,7 +292,7 @@ export default function MenuEditor({ menu, ingredients, onSave, saving }) {
             onClick={savePrices}
             disabled={saving}
             className="w-full rounded-xl py-2.5 text-sm font-semibold"
-            style={{ background: COLOR.kiwi, color: "#fff" }}
+            style={{ background: COLOR.good, color: "#fff" }}
           >
             Save prices
           </button>
@@ -315,8 +315,8 @@ export default function MenuEditor({ menu, ingredients, onSave, saving }) {
                 disabled={saving}
                 className="rounded-full border px-3 py-2 text-sm font-medium"
                 style={{
-                  borderColor: on ? COLOR.kiwi : COLOR.line,
-                  background: on ? COLOR.kiwi : "transparent",
+                  borderColor: on ? COLOR.good : COLOR.line,
+                  background: on ? COLOR.good : "transparent",
                   color: on ? "#fff" : COLOR.ink,
                 }}
               >
@@ -365,7 +365,7 @@ export default function MenuEditor({ menu, ingredients, onSave, saving }) {
             onClick={addFlavor}
             disabled={saving}
             className="flex shrink-0 items-center gap-1 rounded-xl px-3 text-sm font-semibold"
-            style={{ background: COLOR.acai, color: "#fff" }}
+            style={{ background: COLOR.forest, color: "#fff" }}
           >
             <Plus size={15} /> Add
           </button>
@@ -423,8 +423,8 @@ export default function MenuEditor({ menu, ingredients, onSave, saving }) {
                 onClick={() => setNewTopping({ ...newTopping, category: c })}
                 className="rounded-full border px-3 py-1.5 text-xs font-medium"
                 style={{
-                  borderColor: newTopping.category === c ? COLOR.acai : COLOR.line,
-                  background: newTopping.category === c ? COLOR.acaiPale : "transparent",
+                  borderColor: newTopping.category === c ? COLOR.forest : COLOR.line,
+                  background: newTopping.category === c ? COLOR.forestPale : "transparent",
                   color: COLOR.ink,
                 }}
               >
@@ -447,8 +447,8 @@ export default function MenuEditor({ menu, ingredients, onSave, saving }) {
                   onClick={() => setNewTopping({ ...newTopping, unit: u })}
                   className="rounded-lg border px-2.5 py-1.5 text-xs font-medium"
                   style={{
-                    borderColor: newTopping.unit === u ? COLOR.acai : COLOR.line,
-                    background: newTopping.unit === u ? COLOR.acaiPale : "transparent",
+                    borderColor: newTopping.unit === u ? COLOR.forest : COLOR.line,
+                    background: newTopping.unit === u ? COLOR.forestPale : "transparent",
                     color: COLOR.ink,
                   }}
                 >
@@ -461,7 +461,7 @@ export default function MenuEditor({ menu, ingredients, onSave, saving }) {
             onClick={addTopping}
             disabled={saving}
             className="w-full rounded-xl py-2.5 text-sm font-semibold"
-            style={{ background: COLOR.acai, color: "#fff" }}
+            style={{ background: COLOR.forest, color: "#fff" }}
           >
             Add topping
           </button>

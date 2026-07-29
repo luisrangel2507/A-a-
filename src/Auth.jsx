@@ -30,7 +30,7 @@ function Notice({ children }) {
   return (
     <p
       className="flex items-start gap-2 rounded-xl p-3 text-sm"
-      style={{ background: "#FBEAEC", color: COLOR.alert }}
+      style={{ background: COLOR.alertPale, color: COLOR.alert }}
     >
       <AlertTriangle size={16} className="mt-0.5 shrink-0" />
       <span>{children}</span>
@@ -112,7 +112,7 @@ export function SignInScreen({ onSignedIn }) {
           <form
             onSubmit={submit}
             className="mt-5 space-y-3 rounded-2xl p-5"
-            style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}
+            style={{ background: COLOR.card, boxShadow: COLOR.lift }}
           >
             {setup && (
               <Field
@@ -150,7 +150,7 @@ export function SignInScreen({ onSignedIn }) {
               type="submit"
               disabled={busy}
               className="w-full rounded-xl py-3 text-base font-semibold"
-              style={{ background: COLOR.acai, color: "#fff", opacity: busy ? 0.7 : 1 }}
+              style={{ background: COLOR.forest, color: "#fff", opacity: busy ? 0.7 : 1 }}
             >
               {busy ? "One moment…" : setup ? "Create account and enter" : "Sign in"}
             </button>
@@ -194,7 +194,7 @@ function SalesTaxCard({ rate, onSave }) {
   return (
     <div
       className="rounded-2xl p-4"
-      style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}
+      style={{ background: COLOR.card, boxShadow: COLOR.lift }}
     >
       <p className="text-base font-semibold" style={{ color: COLOR.ink }}>
         Sales tax
@@ -224,7 +224,7 @@ function SalesTaxCard({ rate, onSave }) {
             <button
               type="submit"
               className="flex-1 rounded-xl py-2.5 text-sm font-semibold"
-              style={{ background: COLOR.kiwi, color: "#fff" }}
+              style={{ background: COLOR.good, color: "#fff" }}
             >
               Save
             </button>
@@ -232,7 +232,7 @@ function SalesTaxCard({ rate, onSave }) {
         </form>
       ) : (
         <>
-          <p className="font-mono-num mt-1 text-xl font-semibold" style={{ color: COLOR.acai }}>
+          <p className="font-mono-num mt-1 text-xl font-semibold" style={{ color: COLOR.forest }}>
             {rate > 0 ? `${Number((rate * 100).toFixed(4))}%` : "Not set"}
           </p>
           <p className="mt-1 text-sm" style={{ color: COLOR.inkSoft }}>
@@ -241,14 +241,14 @@ function SalesTaxCard({ rate, onSave }) {
               : "No tax is being charged. Menu prices are what customers pay."}
           </p>
           {saved && (
-            <p className="mt-2 text-sm" style={{ color: COLOR.kiwi }}>
+            <p className="mt-2 text-sm" style={{ color: COLOR.good }}>
               Saved. It applies to the next order.
             </p>
           )}
           <button
             onClick={start}
             className="mt-3 rounded-xl px-3 py-2 text-sm font-semibold"
-            style={{ background: COLOR.acaiPale, color: COLOR.acai }}
+            style={{ background: COLOR.forestPale, color: COLOR.forest }}
           >
             {rate > 0 ? "Change rate" : "Set the rate"}
           </button>
@@ -327,7 +327,7 @@ export function TeamPanel({ me, onSignOut, taxRate, onSaveTaxRate, menuEditor })
     <div className="space-y-3">
       <div
         className="rounded-2xl p-4"
-        style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}
+        style={{ background: COLOR.card, boxShadow: COLOR.lift }}
       >
         <p className="text-sm" style={{ color: COLOR.inkSoft }}>
           Signed in as
@@ -341,7 +341,7 @@ export function TeamPanel({ me, onSignOut, taxRate, onSaveTaxRate, menuEditor })
         <button
           onClick={onSignOut}
           className="mt-3 flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold"
-          style={{ background: COLOR.acaiPale, color: COLOR.acai }}
+          style={{ background: COLOR.forestPale, color: COLOR.forest }}
         >
           <LogOut size={15} /> Sign out
         </button>
@@ -366,7 +366,7 @@ export function TeamPanel({ me, onSignOut, taxRate, onSaveTaxRate, menuEditor })
           {note && (
             <p
               className="rounded-xl p-3 text-sm"
-              style={{ background: "#EFF6E4", color: COLOR.kiwi }}
+              style={{ background: "#EFF6E4", color: COLOR.good }}
             >
               {note}
             </p>
@@ -406,7 +406,7 @@ export function TeamPanel({ me, onSignOut, taxRate, onSaveTaxRate, menuEditor })
                         }}
                         aria-label={`Change ${u.name}'s password`}
                         className="rounded-lg p-2"
-                        style={{ background: COLOR.acaiPale, color: COLOR.acai }}
+                        style={{ background: COLOR.forestPale, color: COLOR.forest }}
                       >
                         <KeyRound size={15} />
                       </button>
@@ -415,7 +415,7 @@ export function TeamPanel({ me, onSignOut, taxRate, onSaveTaxRate, menuEditor })
                           onClick={() => deactivate(u)}
                           aria-label={`Remove ${u.name}'s access`}
                           className="rounded-lg p-2"
-                          style={{ background: "#FBEAEC", color: COLOR.alert }}
+                          style={{ background: COLOR.alertPale, color: COLOR.alert }}
                         >
                           <X size={15} />
                         </button>
@@ -447,7 +447,7 @@ export function TeamPanel({ me, onSignOut, taxRate, onSaveTaxRate, menuEditor })
                       <button
                         type="submit"
                         className="flex-1 rounded-xl py-2.5 text-sm font-semibold"
-                        style={{ background: COLOR.kiwi, color: "#fff" }}
+                        style={{ background: COLOR.good, color: "#fff" }}
                       >
                         Save
                       </button>
@@ -462,7 +462,7 @@ export function TeamPanel({ me, onSignOut, taxRate, onSaveTaxRate, menuEditor })
             <form
               onSubmit={addUser}
               className="space-y-3 rounded-2xl p-4"
-              style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}
+              style={{ background: COLOR.card, boxShadow: COLOR.lift }}
             >
               <p className="text-base font-semibold" style={{ color: COLOR.ink }}>
                 New person
@@ -483,8 +483,8 @@ export function TeamPanel({ me, onSignOut, taxRate, onSaveTaxRate, menuEditor })
                         aria-pressed={on}
                         className="flex-1 rounded-xl border-2 px-3 py-2.5 text-left"
                         style={{
-                          borderColor: on ? COLOR.acai : COLOR.line,
-                          background: on ? COLOR.acaiPale : "transparent",
+                          borderColor: on ? COLOR.forest : COLOR.line,
+                          background: on ? COLOR.forestPale : "transparent",
                         }}
                       >
                         <span className="block text-sm font-semibold" style={{ color: COLOR.ink }}>
@@ -535,7 +535,7 @@ export function TeamPanel({ me, onSignOut, taxRate, onSaveTaxRate, menuEditor })
                 <button
                   type="submit"
                   className="flex-1 rounded-xl py-3 text-base font-semibold"
-                  style={{ background: COLOR.acai, color: "#fff" }}
+                  style={{ background: COLOR.forest, color: "#fff" }}
                 >
                   Add
                 </button>
@@ -548,7 +548,7 @@ export function TeamPanel({ me, onSignOut, taxRate, onSaveTaxRate, menuEditor })
                 setNote(null);
               }}
               className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-base font-semibold"
-              style={{ background: COLOR.card, border: `1px dashed ${COLOR.line}`, color: COLOR.acai }}
+              style={{ background: COLOR.card, border: `1px dashed ${COLOR.line}`, color: COLOR.forest }}
             >
               <UserPlus size={17} /> Add person
             </button>

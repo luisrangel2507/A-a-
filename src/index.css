@@ -30,6 +30,105 @@ body {
   padding-bottom: var(--inset-bottom);
 }
 
+/* Motion, kept to what a register earns.
+   ------------------------------------------------------------------
+   The test applied to each one was how many times a day someone sees it. A
+   cashier walks eight steps per order and rings up dozens of orders, so
+   animating the step change would be a few hundred small delays a day — it
+   would look good in a demo and feel slow at the counter. There is
+   deliberately no transition between steps.
+
+   What is left is feedback and one piece of spatial explanation. */
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Every pressable thing answers the press. This is the one people never notice
+   and would miss immediately: on a counter tablet you are often looking at the
+   customer, not the screen, and this is how the tap says it landed. */
+button:not(:disabled) {
+  transition: transform 140ms var(--ease-out);
+}
+
+button:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+/* The payment sheet is the only thing that covers the register, so it is the only
+   thing that has to explain where it came from. Once per order, not per step. */
+.sheet-panel {
+  transform: translateY(0);
+  transition: transform 260ms var(--ease-drawer);
+}
+
+.sheet-panel[data-state="closing"] {
+  /* Leaving is faster than arriving: the decision is made, get out of the way. */
+  transform: translateY(100%);
+  transition: transform 180ms var(--ease-out);
+}
+
+@starting-style {
+  .sheet-panel {
+    transform: translateY(100%);
+  }
+}
+
+.sheet-scrim {
+  opacity: 1;
+  transition: opacity 260ms var(--ease-out);
+}
+
+.sheet-scrim[data-state="closing"] {
+  opacity: 0;
+  transition: opacity 180ms var(--ease-out);
+}
+
+@starting-style {
+  .sheet-scrim {
+    opacity: 0;
+  }
+}
+
+/* Never from scale(0) — nothing arrives out of nothing. */
+.toast-pop {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out);
+}
+
+@starting-style {
+  .toast-pop {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Not "no animation" — no movement. What remains is the fade, which still
+     explains that something appeared, without moving anything across the screen. */
+  button:not(:disabled),
+  button:not(:disabled):active {
+    transform: none;
+    transition: none;
+  }
+
+  .sheet-panel,
+  .sheet-panel[data-state="closing"],
+  .toast-pop {
+    transform: none;
+    transition: opacity 150ms ease;
+  }
+
+  @starting-style {
+    .sheet-panel,
+    .toast-pop {
+      transform: none;
+      opacity: 0;
+    }
+  }
+}
+
 /* Printing a receipt should put the slip on the paper and nothing else — not the
    register behind it, not the buttons that opened it. Hidden with visibility
    rather than display so the receipt keeps its own layout instead of collapsing

@@ -27,6 +27,7 @@ import { SignInScreen, TeamPanel } from "./Auth";
 import MenuEditor from "./MenuEditor";
 import { canSeeInventory, canVoidSale, canVoidAnySale, canCloseOut } from "./lib/roles";
 import bowlImage from "./assets/bowl.jpg";
+import markImage from "./assets/mark.png";
 
 // Photos are picked up from the filesystem by name: drop mango_cream.jpg into
 // assets/flavors/ and that flavour starts showing it, with no code change.
@@ -244,11 +245,11 @@ function TabButton({ active, onClick, icon: Icon, label }) {
     <button
       onClick={onClick}
       className="flex-1 flex flex-col items-center gap-1 py-2.5"
-      style={{ color: active ? COLOR.acai : COLOR.inkSoft }}
+      style={{ color: active ? COLOR.forest : COLOR.inkSoft }}
     >
       <Icon size={20} strokeWidth={active ? 2.4 : 1.8} />
       <span className="text-xs font-medium tracking-wide">{label}</span>
-      <div className="h-0.5 w-6 rounded-full" style={{ background: active ? COLOR.passion : "transparent" }} />
+      <div className="h-0.5 w-6 rounded-full" style={{ background: active ? COLOR.coral : "transparent" }} />
     </button>
   );
 }
@@ -262,7 +263,7 @@ function StepHeader({ onBack, parts = [] }) {
       {parts.length > 0 && (
         <p
           className="truncate rounded-lg px-2 py-1 text-sm font-medium"
-          style={{ background: COLOR.acaiPale, color: COLOR.acai }}
+          style={{ background: COLOR.forestPale, color: COLOR.forest }}
         >
           {parts.join(" · ")}
         </p>
@@ -355,7 +356,7 @@ function Receipt({ order, menu, onClose }) {
           <button
             onClick={() => window.print()}
             className="flex-1 rounded-xl py-2.5 text-sm font-semibold"
-            style={{ background: COLOR.acai, color: "#fff" }}
+            style={{ background: COLOR.forest, color: "#fff" }}
           >
             Print
           </button>
@@ -371,7 +372,9 @@ function Receipt({ order, menu, onClose }) {
 function PaymentSheet({
   subtotal, tax, taxRate, tip, total, tipChoice, onTipChoice, tipCustom, onTipCustom,
   method, onMethod, cashGiven, onCashGiven, change, canCharge, saving, onCharge, onClose,
+  closing,
 }) {
+  const state = closing ? "closing" : "open";
   const Row = ({ label, value, strong }) => (
     <div className="flex items-baseline justify-between">
       <span className={strong ? "text-base font-semibold" : "text-sm"} style={{ color: strong ? COLOR.ink : COLOR.inkSoft }}>
@@ -379,16 +382,21 @@ function PaymentSheet({
       </span>
       <span
         className={`font-mono-num ${strong ? "text-xl font-semibold" : "text-sm"}`}
-        style={{ color: strong ? COLOR.acai : COLOR.inkSoft }}
+        style={{ color: strong ? COLOR.forest : COLOR.inkSoft }}
       >
         {money(value)}
       </span>
     </div>
   );
   return (
-    <div className="fixed inset-0 z-40 flex flex-col justify-end" style={{ background: "rgba(43,18,36,0.45)" }}>
+    <div
+      className="sheet-scrim fixed inset-0 z-40 flex flex-col justify-end"
+      data-state={state}
+      style={{ background: "rgba(0,25,17,0.45)" }}
+    >
       <div
-        className="pad-home-indicator max-h-full w-full max-w-md self-center overflow-y-auto rounded-t-2xl px-4 pt-4"
+        className="sheet-panel pad-home-indicator max-h-full w-full max-w-md self-center overflow-y-auto rounded-t-2xl px-4 pt-4"
+        data-state={state}
         style={{ background: COLOR.card }}
       >
         <div className="mb-3 flex items-center justify-between">
@@ -415,8 +423,8 @@ function PaymentSheet({
               onClick={() => onTipChoice(value)}
               className="rounded-xl border-2 py-2 text-sm font-medium"
               style={{
-                borderColor: tipChoice === value ? COLOR.kiwi : COLOR.line,
-                background: tipChoice === value ? "#EFF6E4" : "transparent",
+                borderColor: tipChoice === value ? COLOR.good : COLOR.line,
+                background: tipChoice === value ? COLOR.goodPale : "transparent",
                 color: COLOR.ink,
               }}
             >
@@ -429,8 +437,8 @@ function PaymentSheet({
             onClick={() => onTipChoice("custom")}
             className="rounded-xl border-2 px-3 py-2 text-sm font-medium"
             style={{
-              borderColor: tipChoice === "custom" ? COLOR.kiwi : COLOR.line,
-              background: tipChoice === "custom" ? "#EFF6E4" : "transparent",
+              borderColor: tipChoice === "custom" ? COLOR.good : COLOR.line,
+              background: tipChoice === "custom" ? COLOR.goodPale : "transparent",
               color: COLOR.ink,
             }}
           >
@@ -457,8 +465,8 @@ function PaymentSheet({
               onClick={() => onMethod(value)}
               className="rounded-xl border-2 py-3 text-base font-medium"
               style={{
-                borderColor: method === value ? COLOR.acai : COLOR.line,
-                background: method === value ? COLOR.acaiPale : "transparent",
+                borderColor: method === value ? COLOR.forest : COLOR.line,
+                background: method === value ? COLOR.forestPale : "transparent",
                 color: COLOR.ink,
               }}
             >
@@ -484,7 +492,7 @@ function PaymentSheet({
             {cashGiven !== "" && (
               <p
                 className="mt-1.5 text-sm font-semibold"
-                style={{ color: change < 0 ? COLOR.alert : COLOR.kiwi }}
+                style={{ color: change < 0 ? COLOR.alert : COLOR.good }}
               >
                 {change < 0
                   ? `${money(-change)} short`
@@ -499,7 +507,7 @@ function PaymentSheet({
           disabled={!canCharge || saving}
           className="mb-4 mt-3 w-full rounded-xl py-3 text-base font-semibold"
           style={{
-            background: canCharge && !saving ? COLOR.passion : COLOR.line,
+            background: canCharge && !saving ? COLOR.coral : COLOR.line,
             color: canCharge && !saving ? "#fff" : COLOR.inkSoft,
           }}
         >
@@ -520,7 +528,7 @@ function ContinueButton({ onClick }) {
       onClick={onClick}
       className="sticky z-10 mt-1 w-full rounded-xl py-3 text-base font-semibold shadow-lg"
       style={{
-        background: COLOR.acai,
+        background: COLOR.forest,
         color: "#fff",
         bottom: "calc(var(--inset-bottom) + 5.5rem)",
       }}
@@ -539,13 +547,13 @@ function ChosenToppings({ included, extras }) {
     <div className="rounded-xl px-3 py-2" style={{ background: COLOR.bg, border: `1px solid ${COLOR.line}` }}>
       {included.length > 0 && (
         <p className="text-xs" style={{ color: COLOR.inkSoft }}>
-          <span className="font-semibold" style={{ color: COLOR.kiwi }}>Included:</span>{" "}
+          <span className="font-semibold" style={{ color: COLOR.good }}>Included:</span>{" "}
           {included.join(", ")}
         </p>
       )}
       {extras.length > 0 && (
         <p className="text-xs" style={{ color: COLOR.inkSoft }}>
-          <span className="font-semibold" style={{ color: COLOR.acai }}>Extras:</span>{" "}
+          <span className="font-semibold" style={{ color: COLOR.forest }}>Extras:</span>{" "}
           {extras.join(", ")}
         </p>
       )}
@@ -590,7 +598,7 @@ function ToppingSwatch({ toppingId, color }) {
 }
 
 function StockBar({ pct, low }) {
-  const c = low ? COLOR.alert : pct < 0.4 ? COLOR.passion : COLOR.kiwi;
+  const c = low ? COLOR.alert : pct < 0.4 ? COLOR.coral : COLOR.good;
   return (
     <div className="h-2 w-full rounded-full" style={{ background: COLOR.line }}>
       <div className="h-2 rounded-full transition-all" style={{ width: `${Math.max(4, pct * 100)}%`, background: c }} />
@@ -602,7 +610,7 @@ function StockBar({ pct, low }) {
 function ProgressSteps({ step, onJump }) {
   return (
     <div className="mb-4">
-      <p className="text-sm font-semibold text-center mb-2" style={{ color: COLOR.acai }}>
+      <p className="text-sm font-semibold text-center mb-2" style={{ color: COLOR.forest }}>
         Step {step + 1} of {STEPS.length} — {STEPS[step].label}
       </p>
       <div className="flex items-center gap-1.5">
@@ -612,7 +620,7 @@ function ProgressSteps({ step, onJump }) {
             onClick={() => onJump(i)}
             aria-label={`Go to ${label}`}
             className="flex-1 h-2.5 rounded-full transition-all"
-            style={{ background: i <= step ? COLOR.acai : COLOR.line }}
+            style={{ background: i <= step ? COLOR.forest : COLOR.line }}
           />
         ))}
       </div>
@@ -773,6 +781,7 @@ export default function AcaiControlApp() {
   // has to be recorded to settle the drawer at close, and the tip has to be asked
   // for before the money changes hands.
   const [paying, setPaying] = useState(false);
+  const [sheetClosing, setSheetClosing] = useState(false);
   const [tipChoice, setTipChoice] = useState(0);
   const [tipCustom, setTipCustom] = useState("");
   const [payMethod, setPayMethod] = useState(null);
@@ -1065,7 +1074,13 @@ export default function AcaiControlApp() {
     (payMethod === "card" || (payMethod === "cash" && (!cashGiven || cashChange >= 0)));
 
   function closePayment() {
-    setPaying(false);
+    // Kept mounted for the length of the exit, then dropped. Without this the sheet
+    // slides up and then vanishes, which reads as a glitch rather than a dismissal.
+    setSheetClosing(true);
+    setTimeout(() => {
+      setSheetClosing(false);
+      setPaying(false);
+    }, 180);
     setTipChoice(0);
     setTipCustom("");
     setPayMethod(null);
@@ -1263,7 +1278,7 @@ export default function AcaiControlApp() {
     if (!newIngName.trim()) return;
     const next = [
       ...ingredients,
-      { id: uid(), name: newIngName.trim(), unit: "g", stock: 0, low: 100, per: 10, color: "#B98CA8" },
+      { id: uid(), name: newIngName.trim(), unit: "g", stock: 0, low: 100, per: 10, color: COLOR.inkSoft },
     ];
     await persistShop(next);
     setNewIngName("");
@@ -1413,9 +1428,13 @@ export default function AcaiControlApp() {
   // which renders before the app shell exists.
   const typography = (
     <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Space+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');
-      .font-display { font-family: 'Fraunces', serif; }
-      .font-mono-num { font-family: 'IBM Plex Mono', monospace; }
+      @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Space+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
+      /* The logo's lettering is a rounded geometric sans; the app used to set the
+         name in a serif, which read as a different brand sitting next to the mark. */
+      .font-display { font-family: 'Nunito', ui-rounded, sans-serif; letter-spacing: -0.01em; }
+      /* Money is the most-read thing on a register. Tabular so columns of prices line
+         up on the decimal, and tight so a total can be large without shouting. */
+      .font-mono-num { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
     `}</style>
   );
 
@@ -1423,7 +1442,7 @@ export default function AcaiControlApp() {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: COLOR.bg }}>
         {typography}
-        <div style={{ color: COLOR.acai }} className="text-sm font-medium">
+        <div style={{ color: COLOR.forest }} className="text-sm font-medium">
           Loading…
         </div>
       </div>
@@ -1443,7 +1462,7 @@ export default function AcaiControlApp() {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: COLOR.bg }}>
         {typography}
-        <div style={{ color: COLOR.acai }} className="text-sm font-medium">
+        <div style={{ color: COLOR.forest }} className="text-sm font-medium">
           Loading…
         </div>
       </div>
@@ -1455,11 +1474,16 @@ export default function AcaiControlApp() {
       {typography}
 
       {/* Header */}
-      <div className="pad-status-bar relative px-5 pb-4" style={{ background: COLOR.acai }}>
-        <h1 className="font-display text-2xl" style={{ color: "#F7ECF3" }}>
-          Quick Açaí
-        </h1>
-        <p className="text-sm mt-0.5" style={{ color: "#D9B9CC" }}>
+      <div className="pad-status-bar relative px-5 pb-4" style={{ background: COLOR.forest }}>
+        {/* The shop's own mark rather than its name re-set in a typeface, which never
+            matched the lettering it was sitting beside. */}
+        <div className="flex items-center gap-2.5">
+          <img src={markImage} alt="" className="shrink-0" style={{ width: 30, height: "auto" }} />
+          <h1 className="font-display text-2xl font-extrabold" style={{ color: "#FFFFFF" }}>
+            Quick Açaí
+          </h1>
+        </div>
+        <p className="text-sm mt-0.5" style={{ color: "#A7C4B6" }}>
           {new Date().toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long" })}
           {" · "}
           {me.name}
@@ -1470,7 +1494,7 @@ export default function AcaiControlApp() {
           <button
             onClick={scrollToCart}
             className="absolute right-4 top-5 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold shadow-md"
-            style={{ background: COLOR.passion, color: "#fff" }}
+            style={{ background: COLOR.coral, color: "#fff" }}
           >
             <ShoppingBag size={14} /> {cart.length} · {money(cartTotal)}
           </button>
@@ -1482,7 +1506,7 @@ export default function AcaiControlApp() {
       {(offline || pending > 0) && (
         <div
           className="flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium"
-          style={{ background: pending > 0 ? "#FBEAEC" : COLOR.acaiPale, color: pending > 0 ? COLOR.alert : COLOR.acai }}
+          style={{ background: pending > 0 ? COLOR.alertPale : COLOR.forestPale, color: pending > 0 ? COLOR.alert : COLOR.forest }}
         >
           <AlertTriangle size={13} className="shrink-0" />
           {pending > 0
@@ -1491,14 +1515,17 @@ export default function AcaiControlApp() {
         </div>
       )}
 
-      {/* Toast */}
+      {/* Toast. Centred by the wrapper rather than by a translate, so the toast's own
+          transform is free to carry the entrance. */}
       {toast && (
-        <div
-          className="fixed top-3 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full text-sm font-medium shadow-lg flex items-center gap-2"
-          style={{ background: toast.isError ? COLOR.alert : COLOR.acai, color: "#fff" }}
-        >
-          {toast.isError ? <AlertTriangle size={14} /> : <Check size={14} />}
-          {toast.msg}
+        <div className="pointer-events-none fixed inset-x-0 top-3 z-50 flex justify-center px-4">
+          <div
+            className="toast-pop flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium shadow-lg"
+            style={{ background: toast.isError ? COLOR.alert : COLOR.forest, color: "#fff" }}
+          >
+            {toast.isError ? <AlertTriangle size={14} /> : <Check size={14} />}
+            {toast.msg}
+          </div>
         </div>
       )}
 
@@ -1547,6 +1574,7 @@ export default function AcaiControlApp() {
 
       {paying && (
         <PaymentSheet
+          closing={sheetClosing}
           subtotal={cartSubtotal}
           tax={cartTax}
           taxRate={taxRate}
@@ -1575,7 +1603,7 @@ export default function AcaiControlApp() {
       <div className="flex-1 pb-24 px-4 pt-4 max-w-md w-full mx-auto">
         {tab === "pos" && (
           <div className="space-y-4">
-            <div className="rounded-2xl p-4" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
+            <div className="rounded-2xl p-4" style={{ background: COLOR.card, boxShadow: COLOR.lift }}>
               {/* Hidden while picking a flavour: the bowl is necessarily empty at that
                   point, and the nine choices need the whole screen to fit without
                   scrolling. Half size on the paid-topping screens, where it is four
@@ -1610,8 +1638,8 @@ export default function AcaiControlApp() {
                       }}
                       className="w-full flex items-center justify-between p-4 rounded-2xl border-2 capitalize"
                       style={{
-                        borderColor: builder.size === sz ? COLOR.passion : COLOR.line,
-                        background: builder.size === sz ? "#FDEEE0" : "transparent",
+                        borderColor: builder.size === sz ? COLOR.coral : COLOR.line,
+                        background: builder.size === sz ? COLOR.coralPale : "transparent",
                       }}
                     >
                       <span className="text-base font-medium" style={{ color: COLOR.ink }}>{sz}</span>
@@ -1647,8 +1675,8 @@ export default function AcaiControlApp() {
                           }}
                           className="flex items-center gap-2 rounded-xl border-2 px-2.5 py-1.5 text-left transition"
                           style={{
-                            borderColor: picked ? COLOR.acai : COLOR.line,
-                            background: picked ? COLOR.acaiPale : "transparent",
+                            borderColor: picked ? COLOR.forest : COLOR.line,
+                            background: picked ? COLOR.forestPale : "transparent",
                             minHeight: 44,
                           }}
                         >
@@ -1682,11 +1710,11 @@ export default function AcaiControlApp() {
                     Included toppings
                   </p>
 
-                  <div className="rounded-xl p-3" style={{ background: "#EFF6E4", border: `1px solid ${COLOR.kiwi}55` }}>
-                    <p className="text-sm font-semibold" style={{ color: COLOR.kiwi }}>
+                  <div className="rounded-xl p-3" style={{ background: COLOR.goodPale, border: `1px solid ${COLOR.good}55` }}>
+                    <p className="text-sm font-semibold" style={{ color: COLOR.good }}>
                       ✓ These four are free
                     </p>
-                    <p className="mb-2 text-xs" style={{ color: COLOR.kiwi }}>
+                    <p className="mb-2 text-xs" style={{ color: COLOR.good }}>
                       Tap to remove any they don't want. Paid extras come next.
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -1699,8 +1727,8 @@ export default function AcaiControlApp() {
                             onClick={() => toggleTopping(t.id)}
                             className="px-3 py-2 rounded-full text-sm font-medium border flex items-center gap-1.5"
                             style={{
-                              borderColor: on ? COLOR.kiwi : COLOR.line,
-                              background: on ? COLOR.kiwi : "transparent",
+                              borderColor: on ? COLOR.good : COLOR.line,
+                              background: on ? COLOR.good : "transparent",
                               color: on ? "#fff" : COLOR.ink,
                             }}
                           >
@@ -1726,11 +1754,11 @@ export default function AcaiControlApp() {
                     Add {CATEGORY_TITLE[stepCategory].toLowerCase()}
                   </p>
 
-                  <div className="rounded-xl px-3 py-2.5" style={{ background: COLOR.acaiPale }}>
-                    <p className="text-sm font-semibold" style={{ color: COLOR.acai }}>
+                  <div className="rounded-xl px-3 py-2.5" style={{ background: COLOR.forestPale }}>
+                    <p className="text-sm font-semibold" style={{ color: COLOR.forest }}>
                       {money(menu.toppingPrice)} each — nothing here is free
                     </p>
-                    <p className="text-xs" style={{ color: COLOR.acaiLight }}>
+                    <p className="text-xs" style={{ color: COLOR.forestSoft }}>
                       {extraCount === 0 ? (
                         "Skip with Continue if they don't want any."
                       ) : (
@@ -1761,8 +1789,8 @@ export default function AcaiControlApp() {
                             onClick={() => toggleTopping(t.id)}
                             className="px-3 py-2 rounded-full text-sm font-medium border flex items-center gap-1.5"
                             style={{
-                              borderColor: on ? COLOR.acai : COLOR.line,
-                              background: on ? COLOR.acai : "transparent",
+                              borderColor: on ? COLOR.forest : COLOR.line,
+                              background: on ? COLOR.forest : "transparent",
                               color: on ? "#fff" : out ? "#B9AEB4" : COLOR.ink,
                               opacity: out ? 0.5 : 1,
                             }}
@@ -1789,7 +1817,7 @@ export default function AcaiControlApp() {
                   <p className="text-base font-semibold text-center" style={{ color: COLOR.ink }}>
                     Review your bowl
                   </p>
-                  <div className="rounded-xl p-3" style={{ background: COLOR.acaiPale }}>
+                  <div className="rounded-xl p-3" style={{ background: COLOR.forestPale }}>
                     <p className="text-base font-semibold" style={{ color: COLOR.ink }}>
                       {currentProduct?.name || "No flavor chosen"} ·{" "}
                       <span className="capitalize">{builder.size || "no size"}</span>
@@ -1828,7 +1856,7 @@ export default function AcaiControlApp() {
                       <span className="text-base font-semibold" style={{ color: COLOR.ink }}>
                         Price
                       </span>
-                      <span className="font-mono-num text-xl font-semibold" style={{ color: COLOR.acai }}>
+                      <span className="font-mono-num text-xl font-semibold" style={{ color: COLOR.forest }}>
                         {money(builderPrice)}
                       </span>
                     </div>
@@ -1839,7 +1867,7 @@ export default function AcaiControlApp() {
                     disabled={!builderReady}
                     className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-base font-semibold"
                     style={{
-                      background: builderReady ? COLOR.passion : COLOR.line,
+                      background: builderReady ? COLOR.coral : COLOR.line,
                       color: builderReady ? "#fff" : COLOR.inkSoft,
                     }}
                   >
@@ -1851,7 +1879,7 @@ export default function AcaiControlApp() {
             </div>
 
             {/* Cart */}
-            <div ref={cartSectionRef} className="rounded-2xl p-4 scroll-mt-4" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
+            <div ref={cartSectionRef} className="rounded-2xl p-4 scroll-mt-4" style={{ background: COLOR.card, boxShadow: COLOR.lift }}>
               <p className="text-base font-semibold mb-2" style={{ color: COLOR.ink }}>
                 Current order
               </p>
@@ -1904,7 +1932,7 @@ export default function AcaiControlApp() {
                     )}
                     <div className="flex items-center justify-between">
                       <span className="text-base font-semibold">Total</span>
-                      <span className="font-mono-num text-xl font-semibold" style={{ color: COLOR.acai }}>
+                      <span className="font-mono-num text-xl font-semibold" style={{ color: COLOR.forest }}>
                         {money(cartTotal)}
                       </span>
                     </div>
@@ -1912,7 +1940,7 @@ export default function AcaiControlApp() {
                   <button
                     onClick={() => setPaying(true)}
                     className="w-full rounded-xl py-3 text-base font-semibold"
-                    style={{ background: COLOR.passion, color: "#fff" }}
+                    style={{ background: COLOR.coral, color: "#fff" }}
                   >
                     Take payment
                   </button>
@@ -1925,7 +1953,7 @@ export default function AcaiControlApp() {
         {tab === "inventario" && showInventory && (
           <div className="space-y-3">
             {report.lowStock.length > 0 && (
-              <div className="rounded-xl p-3 text-sm flex items-start gap-2" style={{ background: "#FBEAEC", color: COLOR.alert }}>
+              <div className="rounded-xl p-3 text-sm flex items-start gap-2" style={{ background: COLOR.alertPale, color: COLOR.alert }}>
                 <AlertTriangle size={16} className="mt-0.5 shrink-0" />
                 <span>Low stock: {report.lowStock.map((i) => i.name).join(", ")}.</span>
               </div>
@@ -1934,7 +1962,7 @@ export default function AcaiControlApp() {
               const pct = Math.min(1, ing.stock / (ing.low * 3 || 1));
               const low = ing.stock <= ing.low;
               return (
-                <div key={ing.id} className="rounded-2xl p-3.5" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
+                <div key={ing.id} className="rounded-2xl p-3.5" style={{ background: COLOR.card, boxShadow: COLOR.lift }}>
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full" style={{ background: ing.color, border: "1px solid rgba(0,0,0,0.1)" }} />
@@ -1956,7 +1984,7 @@ export default function AcaiControlApp() {
                         className="flex-1 text-base px-2 py-1.5 rounded-lg border outline-none"
                         style={{ borderColor: COLOR.line }}
                       />
-                      <button onClick={restock} className="px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: COLOR.kiwi, color: "#fff" }}>
+                      <button onClick={restock} className="px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: COLOR.good, color: "#fff" }}>
                         Save
                       </button>
                       <button onClick={() => setRestockId(null)}>
@@ -1964,7 +1992,7 @@ export default function AcaiControlApp() {
                       </button>
                     </div>
                   ) : (
-                    <button onClick={() => setRestockId(ing.id)} className="text-sm font-medium mt-2" style={{ color: COLOR.acai }}>
+                    <button onClick={() => setRestockId(ing.id)} className="text-sm font-medium mt-2" style={{ color: COLOR.forest }}>
                       + Restock
                     </button>
                   )}
@@ -1980,7 +2008,7 @@ export default function AcaiControlApp() {
                 className="flex-1 text-base px-2 py-1.5 rounded-lg border outline-none"
                 style={{ borderColor: COLOR.line }}
               />
-              <button onClick={addIngredient} className="px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: COLOR.acai, color: "#fff" }}>
+              <button onClick={addIngredient} className="px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: COLOR.forest, color: "#fff" }}>
                 Add
               </button>
             </div>
@@ -1990,27 +2018,29 @@ export default function AcaiControlApp() {
         {tab === "reportes" && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-2xl p-4" style={{ background: COLOR.acai }}>
-                <p className="text-sm" style={{ color: "#D9B9CC" }}>Sales today</p>
+              <div className="rounded-2xl p-4" style={{ background: COLOR.forest }}>
+                <p className="text-sm" style={{ color: "#A7C4B6" }}>Sales today</p>
                 <p className="font-mono-num text-xl font-semibold mt-1" style={{ color: "#fff" }}>{money(report.todayTotal)}</p>
-                <p className="text-sm mt-0.5" style={{ color: "#D9B9CC" }}>{report.todayCount} bowls</p>
+                <p className="text-sm mt-0.5" style={{ color: "#A7C4B6" }}>
+                  {report.todayCount} {report.todayCount === 1 ? "bowl" : "bowls"}
+                </p>
                 {(report.todayTax > 0 || report.todayTips > 0) && (
-                  <p className="mt-2 text-xs leading-snug" style={{ color: "#D9B9CC" }}>
+                  <p className="mt-2 text-xs leading-snug" style={{ color: "#A7C4B6" }}>
                     before tax and tips · took{" "}
                     <span className="font-mono-num">{money(report.todayCollected)}</span>
                   </p>
                 )}
               </div>
-              <div className="rounded-2xl p-4" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
+              <div className="rounded-2xl p-4" style={{ background: COLOR.card, boxShadow: COLOR.lift }}>
                 <p className="text-sm" style={{ color: COLOR.inkSoft }}>Best seller</p>
                 <p className="text-lg font-semibold mt-1">{report.topProduct ? report.topProduct[0] : "—"}</p>
                 <p className="text-sm mt-0.5" style={{ color: COLOR.inkSoft }}>
-                  {report.topProduct ? `${report.topProduct[1]} sold` : "no data yet"}
+                  {report.topProduct ? `${report.topProduct[1]} sold` : "nothing sold yet"}
                 </p>
               </div>
             </div>
 
-            <div className="rounded-2xl p-4" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
+            <div className="rounded-2xl p-4" style={{ background: COLOR.card, boxShadow: COLOR.lift }}>
               <p className="text-base font-semibold mb-3">Last 7 days</p>
               <div style={{ width: "100%", height: 160 }}>
                 <ResponsiveContainer>
@@ -2019,7 +2049,7 @@ export default function AcaiControlApp() {
                     <XAxis dataKey="label" tick={{ fontSize: 12, fill: COLOR.inkSoft }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 11, fill: COLOR.inkSoft }} axisLine={false} tickLine={false} width={36} />
                     <Tooltip formatter={(v) => money(v)} contentStyle={{ fontSize: 13, borderRadius: 8 }} />
-                    <Bar dataKey="total" fill={COLOR.acai} radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="total" fill={COLOR.forest} radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -2028,10 +2058,10 @@ export default function AcaiControlApp() {
             {report.todayTax > 0 && (
               <div
                 className="rounded-2xl p-4"
-                style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}
+                style={{ background: COLOR.card, boxShadow: COLOR.lift }}
               >
                 <p className="text-base font-semibold">Sales tax collected today</p>
-                <p className="font-mono-num mt-1 text-xl font-semibold" style={{ color: COLOR.acai }}>
+                <p className="font-mono-num mt-1 text-xl font-semibold" style={{ color: COLOR.forest }}>
                   {money(report.todayTax)}
                 </p>
                 <p className="mt-1 text-sm" style={{ color: COLOR.inkSoft }}>
@@ -2043,7 +2073,7 @@ export default function AcaiControlApp() {
 
             {/* Cash versus card, because at close the cash is the only half that has
                 to be counted by hand and matched. */}
-            <div className="rounded-2xl p-4" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
+            <div className="rounded-2xl p-4" style={{ background: COLOR.card, boxShadow: COLOR.lift }}>
               <p className="text-base font-semibold mb-2">Taken today</p>
               <div className="space-y-1">
                 {[["Cash", report.takings.cash], ["Card", report.takings.card],
@@ -2061,7 +2091,7 @@ export default function AcaiControlApp() {
               {report.todayTips > 0 && (
                 <p className="mt-2 border-t pt-2 text-sm" style={{ borderColor: COLOR.line, color: COLOR.inkSoft }}>
                   Includes{" "}
-                  <span className="font-mono-num font-semibold" style={{ color: COLOR.kiwi }}>
+                  <span className="font-mono-num font-semibold" style={{ color: COLOR.good }}>
                     {money(report.todayTips)}
                   </span>{" "}
                   in tips — the staff's, not the shop's.
@@ -2072,7 +2102,7 @@ export default function AcaiControlApp() {
             {/* Counting the drawer at close. Cash is the only half that has to be
                 matched by hand — the card total comes from the reader. */}
             {canCloseOut(me?.role) && (
-              <div className="rounded-2xl p-4" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
+              <div className="rounded-2xl p-4" style={{ background: COLOR.card, boxShadow: COLOR.lift }}>
                 <p className="text-base font-semibold">Close out the day</p>
                 {todayCloseout ? (
                   <div className="mt-2">
@@ -2083,7 +2113,7 @@ export default function AcaiControlApp() {
                     </p>
                     <p
                       className="font-mono-num mt-1 text-xl font-semibold"
-                      style={{ color: todayCloseout.difference === 0 ? COLOR.kiwi : COLOR.alert }}
+                      style={{ color: todayCloseout.difference === 0 ? COLOR.good : COLOR.alert }}
                     >
                       {todayCloseout.difference === 0
                         ? "Balanced"
@@ -2130,7 +2160,7 @@ export default function AcaiControlApp() {
                     {countedCash !== "" && countedValid && (
                       <p
                         className="mt-1.5 text-sm font-semibold"
-                        style={{ color: countedDiff === 0 ? COLOR.kiwi : COLOR.alert }}
+                        style={{ color: countedDiff === 0 ? COLOR.good : COLOR.alert }}
                       >
                         {countedDiff === 0
                           ? "Balanced"
@@ -2142,7 +2172,7 @@ export default function AcaiControlApp() {
                       disabled={saving || !countedValid}
                       className="mt-2 w-full rounded-xl py-2.5 text-sm font-semibold"
                       style={{
-                        background: countedValid ? COLOR.acai : COLOR.line,
+                        background: countedValid ? COLOR.forest : COLOR.line,
                         color: countedValid ? "#fff" : COLOR.inkSoft,
                       }}
                     >
@@ -2154,7 +2184,7 @@ export default function AcaiControlApp() {
             )}
 
             {/* Today's sales, so a wrong one can be found and undone. */}
-            <div className="rounded-2xl p-4" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
+            <div className="rounded-2xl p-4" style={{ background: COLOR.card, boxShadow: COLOR.lift }}>
               <p className="text-base font-semibold mb-3">Today's sales</p>
               {report.todayLog.length === 0 ? (
                 <p className="text-sm" style={{ color: COLOR.inkSoft }}>Nothing rung up yet today.</p>
@@ -2239,7 +2269,7 @@ export default function AcaiControlApp() {
               )}
             </div>
 
-            <div className="rounded-2xl p-4" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
+            <div className="rounded-2xl p-4" style={{ background: COLOR.card, boxShadow: COLOR.lift }}>
               <p className="text-base font-semibold mb-3">Sold by</p>
               {report.people.length === 0 ? (
                 <p className="text-sm" style={{ color: COLOR.inkSoft }}>
@@ -2254,13 +2284,13 @@ export default function AcaiControlApp() {
                       </span>
                       <span className="shrink-0 text-sm" style={{ color: COLOR.inkSoft }}>
                         {p.count} {p.count === 1 ? "bowl" : "bowls"} ·{" "}
-                        <span className="font-mono-num font-semibold" style={{ color: COLOR.acai }}>
+                        <span className="font-mono-num font-semibold" style={{ color: COLOR.forest }}>
                           {money(p.total)}
                         </span>
                         {p.tips > 0 && (
                           <>
                             {" · "}
-                            <span className="font-mono-num font-semibold" style={{ color: COLOR.kiwi }}>
+                            <span className="font-mono-num font-semibold" style={{ color: COLOR.good }}>
                               {money(p.tips)}
                             </span>{" "}
                             tips
@@ -2273,16 +2303,18 @@ export default function AcaiControlApp() {
               )}
             </div>
 
-            <div className="rounded-2xl p-4" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
+            <div className="rounded-2xl p-4" style={{ background: COLOR.card, boxShadow: COLOR.lift }}>
               <p className="text-base font-semibold mb-1">Favorite topping</p>
               <p className="text-lg font-semibold">{report.topTopping ? report.topTopping[0] : "—"}</p>
               <p className="text-sm" style={{ color: COLOR.inkSoft }}>
-                {report.topTopping ? `ordered ${report.topTopping[1]} times` : "no data yet"}
+                {report.topTopping
+                  ? `ordered ${report.topTopping[1]} ${report.topTopping[1] === 1 ? "time" : "times"}`
+                  : "nothing added yet"}
               </p>
             </div>
 
             {report.lowStock.length > 0 && (
-              <div className="rounded-2xl p-4" style={{ background: "#FBEAEC" }}>
+              <div className="rounded-2xl p-4" style={{ background: COLOR.alertPale }}>
                 <p className="text-base font-semibold mb-1 flex items-center gap-1.5" style={{ color: COLOR.alert }}>
                   <AlertTriangle size={16} /> Check inventory
                 </p>
