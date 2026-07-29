@@ -21,6 +21,9 @@ export const canManageStaff = (role) => role === "owner";
 // the register stays wrong until a manager walks over: register staff can void
 // their own sale from today, and whoever runs the shop can void any of them.
 export const canVoidAnySale = (role) => role === "owner" || role === "manager";
+
+// Counting the drawer and settling the day belongs to whoever is closing the shop.
+export const canCloseOut = (role) => role === "owner" || role === "manager";
 export const canVoidSale = (role, sale, userId) =>
   canVoidAnySale(role) || (Boolean(userId) && sale.userId === userId);
 

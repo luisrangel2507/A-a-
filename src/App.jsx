@@ -23,7 +23,7 @@ import storage, { SessionExpiredError } from "./lib/storage";
 import auth from "./lib/auth";
 import { COLOR } from "./theme";
 import { SignInScreen, TeamPanel } from "./Auth";
-import { canSeeInventory, canVoidSale, canVoidAnySale } from "./lib/roles";
+import { canSeeInventory, canVoidSale, canVoidAnySale, canCloseOut } from "./lib/roles";
 import bowlImage from "./assets/bowl.jpg";
 
 // Photos are picked up from the filesystem by name: drop mango_cream.jpg into
@@ -757,6 +757,7 @@ export default function AcaiControlApp() {
   const [tab, setTab] = useState("pos");
   const [ingredients, setIngredients] = useState([]);
   const [sales, setSales] = useState([]);
+  const [closeouts, setCloseouts] = useState([]);
   const [menu, setMenu] = useState(defaultMenu());
   const [cart, setCart] = useState([]);
   const [builder, setBuilder] = useState({ productId: null, size: null, toppingIds: [] });
@@ -777,6 +778,7 @@ export default function AcaiControlApp() {
   // Voiding puts money and stock back, so it asks first.
   const [voiding, setVoiding] = useState(null);
   const [receipt, setReceipt] = useState(null);
+  const [countedCash, setCountedCash] = useState("");
   const cartSectionRef = useRef(null);
 
   useEffect(() => {
@@ -834,6 +836,7 @@ export default function AcaiControlApp() {
   async function load() {
     let ing = defaultIngredients();
     let sl = [];
+    let co = [];
     let mn = defaultMenu();
     try {
       const shop = await storage.get(STORAGE_SHOP);
@@ -841,12 +844,13 @@ export default function AcaiControlApp() {
         const d = JSON.parse(shop.value);
         if (d.ingredients) ing = d.ingredients;
         if (d.sales) sl = d.sales;
+        if (d.closeouts) co = d.closeouts;
       }
     } catch (e) {
       // A missing key is the first-run case: seed it. A lapsed session is not.
       if (handleStorageError(e)) return;
       try {
-        await storage.set(STORAGE_SHOP, JSON.stringify({ ingredients: ing, sales: sl }));
+        await storage.set(STORAGE_SHOP, JSON.stringify({ ingredients: ing, sales: sl, closeouts: co }));
       } catch (e2) {
         if (handleStorageError(e2)) return;
       }
@@ -866,6 +870,7 @@ export default function AcaiControlApp() {
     }
     setIngredients(ing);
     setSales(sl);
+    setCloseouts(co);
     setMenu(mn);
     // Nothing is chosen for the customer: size and flavour start empty, so no button
     // looks picked until someone picks it. The free toppings are the exception —
@@ -874,11 +879,15 @@ export default function AcaiControlApp() {
     setReady(true);
   }
 
-  async function persistShop(nextIngredients, nextSales) {
+  async function persistShop(nextIngredients, nextSales, nextCloseouts = closeouts) {
     setIngredients(nextIngredients);
     setSales(nextSales);
+    setCloseouts(nextCloseouts);
     try {
-      await storage.set(STORAGE_SHOP, JSON.stringify({ ingredients: nextIngredients, sales: nextSales }));
+      await storage.set(
+        STORAGE_SHOP,
+        JSON.stringify({ ingredients: nextIngredients, sales: nextSales, closeouts: nextCloseouts })
+      );
     } catch (e) {
       handleStorageError(e, "Couldn't save. Try again.");
     }
@@ -1054,6 +1063,37 @@ export default function AcaiControlApp() {
     showToast(`Voided ${money(sale.price + (sale.tax || 0) + (sale.tip || 0))}`);
   }
 
+  // Settling the day: what the register says should be in the drawer against what is
+  // actually counted out of it. The difference is the point — a drawer that is never
+  // counted cannot tell you it is short.
+  async function saveCloseout() {
+    const counted = parseFloat(countedCash);
+    if (!Number.isFinite(counted) || counted < 0) return;
+    setSaving(true);
+    const record = {
+      id: uid(),
+      day: todayKey(),
+      closedAt: new Date().toISOString(),
+      closedById: me?.id || null,
+      closedByName: me?.name || null,
+      expectedCash: Math.round(report.takings.cash * 100) / 100,
+      countedCash: Math.round(counted * 100) / 100,
+      difference: Math.round((counted - report.takings.cash) * 100) / 100,
+      cardTotal: Math.round(report.takings.card * 100) / 100,
+      tips: Math.round(report.todayTips * 100) / 100,
+      salesCount: report.todayCount,
+    };
+    await persistShop(ingredients, sales, [...closeouts, record]);
+    setCountedCash("");
+    setSaving(false);
+    showToast(
+      record.difference === 0
+        ? "Drawer balanced"
+        : `${money(Math.abs(record.difference))} ${record.difference > 0 ? "over" : "short"}`,
+      record.difference !== 0
+    );
+  }
+
   // The rate lives with the menu, so every register picks it up from the shared
   // database rather than each device keeping its own idea of the tax.
   async function saveTaxRate(rate) {
@@ -1202,6 +1242,11 @@ export default function AcaiControlApp() {
       people,
     };
   }, [sales, ingredients, menu]);
+
+  // Below the report deliberately: both read from it. One close-out per day, and the
+  // latest wins if a day somehow got two.
+  const todayCloseout = [...closeouts].reverse().find((c) => c.day === todayKey()) || null;
+  const countedDiff = Math.round(((parseFloat(countedCash) || 0) - report.takings.cash) * 100) / 100;
 
   const toppingsByCategory = useMemo(() => {
     const grouped = {};
@@ -1864,6 +1909,90 @@ export default function AcaiControlApp() {
                 </p>
               )}
             </div>
+
+            {/* Counting the drawer at close. Cash is the only half that has to be
+                matched by hand — the card total comes from the reader. */}
+            {canCloseOut(me?.role) && (
+              <div className="rounded-2xl p-4" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
+                <p className="text-base font-semibold">Close out the day</p>
+                {todayCloseout ? (
+                  <div className="mt-2">
+                    <p className="text-sm" style={{ color: COLOR.inkSoft }}>
+                      Closed at{" "}
+                      {new Date(todayCloseout.closedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                      {todayCloseout.closedByName ? ` by ${todayCloseout.closedByName}` : ""}.
+                    </p>
+                    <p
+                      className="font-mono-num mt-1 text-xl font-semibold"
+                      style={{ color: todayCloseout.difference === 0 ? COLOR.kiwi : COLOR.alert }}
+                    >
+                      {todayCloseout.difference === 0
+                        ? "Balanced"
+                        : `${money(Math.abs(todayCloseout.difference))} ${todayCloseout.difference > 0 ? "over" : "short"}`}
+                    </p>
+                    <p className="mt-1 text-sm" style={{ color: COLOR.inkSoft }}>
+                      Counted {money(todayCloseout.countedCash)} against{" "}
+                      {money(todayCloseout.expectedCash)} expected.
+                    </p>
+                    {report.takings.cash !== todayCloseout.expectedCash && (
+                      <p className="mt-1 text-xs" style={{ color: COLOR.alert }}>
+                        Cash has moved since — now {money(report.takings.cash)}. Count again if
+                        the day is not finished.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <div className="mt-2 space-y-1">
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-sm" style={{ color: COLOR.inkSoft }}>Cash expected in the drawer</span>
+                        <span className="font-mono-num text-sm font-semibold" style={{ color: COLOR.ink }}>
+                          {money(report.takings.cash)}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-sm" style={{ color: COLOR.inkSoft }}>On the card reader</span>
+                        <span className="font-mono-num text-sm" style={{ color: COLOR.inkSoft }}>
+                          {money(report.takings.card)}
+                        </span>
+                      </div>
+                    </div>
+                    <label className="mt-3 block text-xs font-medium" style={{ color: COLOR.inkSoft }}>
+                      Cash counted
+                    </label>
+                    <input
+                      inputMode="decimal"
+                      value={countedCash}
+                      onChange={(e) => setCountedCash(e.target.value)}
+                      placeholder={report.takings.cash.toFixed(2)}
+                      className="font-mono-num mt-1 w-full rounded-xl border px-3 py-2 text-base"
+                      style={{ borderColor: COLOR.line, color: COLOR.ink }}
+                    />
+                    {countedCash !== "" && Number.isFinite(parseFloat(countedCash)) && (
+                      <p
+                        className="mt-1.5 text-sm font-semibold"
+                        style={{ color: countedDiff === 0 ? COLOR.kiwi : COLOR.alert }}
+                      >
+                        {countedDiff === 0
+                          ? "Balanced"
+                          : `${money(Math.abs(countedDiff))} ${countedDiff > 0 ? "over" : "short"}`}
+                      </p>
+                    )}
+                    <button
+                      onClick={saveCloseout}
+                      disabled={saving || !Number.isFinite(parseFloat(countedCash))}
+                      className="mt-2 w-full rounded-xl py-2.5 text-sm font-semibold"
+                      style={{
+                        background: Number.isFinite(parseFloat(countedCash)) ? COLOR.acai : COLOR.line,
+                        color: Number.isFinite(parseFloat(countedCash)) ? "#fff" : COLOR.inkSoft,
+                      }}
+                    >
+                      Save close-out
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
 
             {/* Today's sales, so a wrong one can be found and undone. */}
             <div className="rounded-2xl p-4" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
