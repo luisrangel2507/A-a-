@@ -22,6 +22,32 @@ async function request(path, options = {}) {
   return data;
 }
 
+// Who was signed in last time, so a reload with no connection reopens the register
+// instead of a sign-in form nobody can answer. This is display state only: it grants
+// nothing. The session is still the httpOnly cookie, the API still refuses without
+// it, and the moment the server is reachable again it decides who this really is.
+const CACHED_USER = "last-user-v1";
+
+function rememberUser(user) {
+  try {
+    if (user) localStorage.setItem(CACHED_USER, JSON.stringify(user));
+    else localStorage.removeItem(CACHED_USER);
+  } catch {
+    // Nothing to do; the app simply will not survive an offline reload.
+  }
+}
+
+function lastUser() {
+  try {
+    const raw = localStorage.getItem(CACHED_USER);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+const isNetworkFailure = (err) => err instanceof TypeError || err?.name === "AbortError";
+
 const auth = {
   // Is there an account yet? A fresh deployment has none and offers to create one.
   async state() {
@@ -30,9 +56,22 @@ const auth = {
 
   async me() {
     try {
-      return (await request("/api/auth/me")).user;
+      const user = (await request("/api/auth/me")).user;
+      rememberUser(user);
+      return user;
     } catch (err) {
-      if (err.status === 401) return null;
+      // Signed out for real: forget them, so the next offline start does not reopen
+      // the register for someone the server has already turned away.
+      if (err.status === 401) {
+        rememberUser(null);
+        return null;
+      }
+      // Could not ask. Fall back to whoever was here last, and let the reconnect
+      // check settle it.
+      if (isNetworkFailure(err)) {
+        const cached = lastUser();
+        if (cached) return { ...cached, offline: true };
+      }
       throw err;
     }
   },
@@ -45,13 +84,17 @@ const auth = {
   },
 
   async login({ username, password }) {
-    return (await request("/api/auth/login", {
+    const user = (await request("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password }),
     })).user;
+    rememberUser(user);
+    return user;
   },
 
   async logout() {
+    // Forgotten first: signing out has to hold even if the request itself fails.
+    rememberUser(null);
     await request("/api/auth/logout", { method: "POST" });
   },
 

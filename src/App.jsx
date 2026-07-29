@@ -20,6 +20,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import storage, { SessionExpiredError } from "./lib/storage";
+import salesApi from "./lib/sales";
 import auth from "./lib/auth";
 import { COLOR } from "./theme";
 import { SignInScreen, TeamPanel } from "./Auth";
@@ -780,6 +781,10 @@ export default function AcaiControlApp() {
   const [voiding, setVoiding] = useState(null);
   const [receipt, setReceipt] = useState(null);
   const [countedCash, setCountedCash] = useState("");
+  // Sales taken on this device that the server has not acknowledged yet, and whether
+  // we could reach it at all last time we tried.
+  const [pending, setPending] = useState(0);
+  const [offline, setOffline] = useState(false);
   const cartSectionRef = useRef(null);
 
   useEffect(() => {
@@ -800,6 +805,58 @@ export default function AcaiControlApp() {
   // Shop data is only fetched once there is a session — the endpoint refuses it otherwise.
   useEffect(() => {
     if (me) load();
+  }, [me]);
+
+  // Coming back online is the moment the queue matters. The browser's own event is
+  // the fast path; the interval covers the case it lies, which it does — "online" only
+  // means an interface is up, not that the server is reachable.
+  // Read through refs, not through the closure. A sync calls setPending partway
+  // through, and if those were dependencies that update would tear down the very
+  // effect doing the syncing — the refetch that follows would be cancelled halfway,
+  // leaving this register showing its own sales and none of the other one's.
+  const syncState = useRef({ pending: 0, offline: false, busy: false });
+  syncState.current.pending = pending;
+  syncState.current.offline = offline;
+
+  useEffect(() => {
+    if (!me) return undefined;
+    let alive = true;
+    async function drain() {
+      if (!alive || syncState.current.busy) return;
+      const hadWork = syncState.current.pending > 0 || syncState.current.offline;
+      syncState.current.busy = true;
+      try {
+        const { remaining } = await salesApi.flush();
+        setPending(remaining);
+        if (remaining === 0 && hadWork) {
+          const fresh = await salesApi.list();
+          if (fresh.stale) return;
+          setSales(fresh.sales);
+          // Stock moved on the server as the queue landed, so take it from there
+          // rather than trusting this device's optimistic copy.
+          const shop = await storage.get(STORAGE_SHOP);
+          const parsed = JSON.parse(shop.value);
+          if (parsed.ingredients) setIngredients(parsed.ingredients);
+          showToast("Back online — sales synced");
+        }
+        setOffline(false);
+      } catch (e) {
+        if (e instanceof SessionExpiredError) handleStorageError(e);
+        else setOffline(true);
+      } finally {
+        syncState.current.busy = false;
+      }
+    }
+    const onOnline = () => drain();
+    window.addEventListener("online", onOnline);
+    const timer = setInterval(() => {
+      if (syncState.current.pending > 0 || syncState.current.offline) drain();
+    }, 15000);
+    return () => {
+      alive = false;
+      window.removeEventListener("online", onOnline);
+      clearInterval(timer);
+    };
   }, [me]);
 
   // Inventory belongs to the admin and whoever is running the shift.
@@ -844,14 +901,13 @@ export default function AcaiControlApp() {
       if (shop && shop.value) {
         const d = JSON.parse(shop.value);
         if (d.ingredients) ing = d.ingredients;
-        if (d.sales) sl = d.sales;
         if (d.closeouts) co = d.closeouts;
       }
     } catch (e) {
       // A missing key is the first-run case: seed it. A lapsed session is not.
       if (handleStorageError(e)) return;
       try {
-        await storage.set(STORAGE_SHOP, JSON.stringify({ ingredients: ing, sales: sl, closeouts: co }));
+        await storage.set(STORAGE_SHOP, JSON.stringify({ ingredients: ing, closeouts: co }));
       } catch (e2) {
         if (handleStorageError(e2)) return;
       }
@@ -869,6 +925,29 @@ export default function AcaiControlApp() {
         if (handleStorageError(e2)) return;
       }
     }
+    // Anything this device took while the connection was down goes first, so the
+    // list that comes back already includes it.
+    try {
+      await salesApi.flush();
+    } catch (e) {
+      if (handleStorageError(e)) return;
+    }
+    setPending(salesApi.pending());
+    try {
+      const listed = await salesApi.list();
+      sl = listed.sales;
+      // Stale means it came from this device's copy because the server was
+      // unreachable. The register still opens — the menu and the last known stock are
+      // enough to keep selling — and the real list arrives on reconnect.
+      setOffline(listed.stale);
+    } catch (e) {
+      if (e instanceof SessionExpiredError) {
+        handleStorageError(e);
+        return;
+      }
+      setOffline(true);
+    }
+
     setIngredients(ing);
     setSales(sl);
     setCloseouts(co);
@@ -880,14 +959,16 @@ export default function AcaiControlApp() {
     setReady(true);
   }
 
-  async function persistShop(nextIngredients, nextSales, nextCloseouts = closeouts) {
+  // Ingredients and closeouts only. Sales are appended to their own table through
+  // salesApi, so that a register coming back from offline never writes its idea of
+  // the whole day over everyone else's.
+  async function persistShop(nextIngredients, nextCloseouts = closeouts) {
     setIngredients(nextIngredients);
-    setSales(nextSales);
     setCloseouts(nextCloseouts);
     try {
       await storage.set(
         STORAGE_SHOP,
-        JSON.stringify({ ingredients: nextIngredients, sales: nextSales, closeouts: nextCloseouts })
+        JSON.stringify({ ingredients: nextIngredients, closeouts: nextCloseouts })
       );
     } catch (e) {
       handleStorageError(e, "Couldn't save. Try again.");
@@ -1003,9 +1084,7 @@ export default function AcaiControlApp() {
       consumptionFor(item, menu, nextIngredients).forEach(({ id, amount }) => consume(id, amount));
     });
     const now = new Date().toISOString();
-    const newSales = [
-      ...sales,
-      ...cart.map((item) => ({
+    const rung = cart.map((item) => ({
         id: uid(),
         date: now,
         productId: item.productId,
@@ -1026,13 +1105,31 @@ export default function AcaiControlApp() {
         // Who rang it up, taken from the signed-in session rather than typed in.
         userId: me?.id || null,
         userName: me?.name || null,
-      })),
-    ];
-    await persistShop(nextIngredients, newSales);
+    }));
+
+    // The money has already changed hands, so the register shows the sale and moves
+    // on whether or not the server heard about it. Stock comes off locally to match
+    // what the server does with the same numbers; a reconnect re-reads both.
+    setSales([...sales, ...rung]);
+    setIngredients(nextIngredients);
     setCart([]);
-    setSaving(false);
     closePayment();
-    showToast(`Charged ${money(amountDue)}`);
+
+    let queued = false;
+    try {
+      for (const item of rung) {
+        const result = await salesApi.record(item, consumptionFor(item, menu, ingredients));
+        queued = queued || result.queued;
+      }
+    } catch (e) {
+      handleStorageError(e, "Couldn't save the sale. Try again.");
+    }
+    setPending(salesApi.pending());
+    if (queued) setOffline(true);
+    setSaving(false);
+    showToast(
+      queued ? `Charged ${money(amountDue)} — saved on this device` : `Charged ${money(amountDue)}`
+    );
   }
 
   // A mis-ring is not rare, and until now there was no way back from one: the wrong
@@ -1048,20 +1145,33 @@ export default function AcaiControlApp() {
       const ing = nextIngredients.find((i) => i.id === id);
       if (ing) ing.stock += amount;
     });
-    const nextSales = sales.map((s) =>
-      s.id === saleId
-        ? {
-            ...s,
-            voided: true,
-            voidedAt: new Date().toISOString(),
-            voidedById: me?.id || null,
-            voidedByName: me?.name || null,
-          }
-        : s
+    setSales(
+      sales.map((s) =>
+        s.id === saleId
+          ? {
+              ...s,
+              voided: true,
+              voidedAt: new Date().toISOString(),
+              voidedById: me?.id || null,
+              voidedByName: me?.name || null,
+            }
+          : s
+      )
     );
-    await persistShop(nextIngredients, nextSales);
+    setIngredients(nextIngredients);
+
+    let queued = false;
+    try {
+      const result = await salesApi.void(saleId, consumptionFor(sale, menu, ingredients));
+      queued = result.queued;
+    } catch (e) {
+      handleStorageError(e, "Couldn't void the sale. Try again.");
+    }
+    setPending(salesApi.pending());
+    if (queued) setOffline(true);
     setSaving(false);
-    showToast(`Voided ${money(sale.price + (sale.tax || 0) + (sale.tip || 0))}`);
+    const amount = money(sale.price + (sale.tax || 0) + (sale.tip || 0));
+    showToast(queued ? `Voided ${amount} — saved on this device` : `Voided ${amount}`);
   }
 
   // Settling the day: what the register says should be in the drawer against what is
@@ -1084,7 +1194,7 @@ export default function AcaiControlApp() {
       tips: Math.round(report.todayTips * 100) / 100,
       salesCount: report.todayCount,
     };
-    await persistShop(ingredients, sales, [...closeouts, record]);
+    await persistShop(ingredients, [...closeouts, record]);
     setCountedCash("");
     setSaving(false);
     showToast(
@@ -1104,7 +1214,7 @@ export default function AcaiControlApp() {
     try {
       await storage.set(STORAGE_MENU, JSON.stringify(nextMenu));
       if (nextIngredients !== ingredients) {
-        await persistShop(nextIngredients, sales);
+        await persistShop(nextIngredients);
       }
       // The bowl being built may now hold a topping that is no longer on the menu, or
       // be missing one that just became free.
@@ -1136,8 +1246,14 @@ export default function AcaiControlApp() {
   async function restock() {
     const amt = parseFloat(restockAmt);
     if (!restockId || !amt || amt <= 0) return;
-    const next = ingredients.map((i) => (i.id === restockId ? { ...i, stock: i.stock + amt } : i));
-    await persistShop(next, sales);
+    // Sent as a delta, not as a rewrite of every stock level: another register may be
+    // selling from the same shelf while this one is counting it.
+    try {
+      await salesApi.adjustStock([{ id: restockId, amount: amt }]);
+    } catch (e) {
+      return handleStorageError(e, "Couldn't update stock. Try again.");
+    }
+    setIngredients(ingredients.map((i) => (i.id === restockId ? { ...i, stock: i.stock + amt } : i)));
     setRestockId(null);
     setRestockAmt("");
     showToast("Inventory updated");
@@ -1149,7 +1265,7 @@ export default function AcaiControlApp() {
       ...ingredients,
       { id: uid(), name: newIngName.trim(), unit: "g", stock: 0, low: 100, per: 10, color: "#B98CA8" },
     ];
-    await persistShop(next, sales);
+    await persistShop(next);
     setNewIngName("");
     showToast("Ingredient added");
   }
@@ -1272,6 +1388,9 @@ export default function AcaiControlApp() {
   // Below the report deliberately: both read from it. One close-out per day, and the
   // latest wins if a day somehow got two.
   const todayCloseout = [...closeouts].reverse().find((c) => c.day === todayKey()) || null;
+  // One notion of "is this a usable count", so the button and saveCloseout can never
+  // disagree — an enabled button that silently does nothing is worse than a disabled one.
+  const countedValid = Number.isFinite(parseFloat(countedCash)) && parseFloat(countedCash) >= 0;
   const countedDiff = Math.round(((parseFloat(countedCash) || 0) - report.takings.cash) * 100) / 100;
 
   const toppingsByCategory = useMemo(() => {
@@ -1357,6 +1476,20 @@ export default function AcaiControlApp() {
           </button>
         )}
       </div>
+
+      {/* Whoever is at the register has to be able to tell the difference between a
+          sale that is banked and one that is still on this tablet. */}
+      {(offline || pending > 0) && (
+        <div
+          className="flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium"
+          style={{ background: pending > 0 ? "#FBEAEC" : COLOR.acaiPale, color: pending > 0 ? COLOR.alert : COLOR.acai }}
+        >
+          <AlertTriangle size={13} className="shrink-0" />
+          {pending > 0
+            ? `${pending} ${pending === 1 ? "sale" : "sales"} saved on this device — sending when the connection is back`
+            : "No connection — sales are saved here and sent when it returns"}
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (
@@ -1994,7 +2127,7 @@ export default function AcaiControlApp() {
                       className="font-mono-num mt-1 w-full rounded-xl border px-3 py-2 text-base"
                       style={{ borderColor: COLOR.line, color: COLOR.ink }}
                     />
-                    {countedCash !== "" && Number.isFinite(parseFloat(countedCash)) && (
+                    {countedCash !== "" && countedValid && (
                       <p
                         className="mt-1.5 text-sm font-semibold"
                         style={{ color: countedDiff === 0 ? COLOR.kiwi : COLOR.alert }}
@@ -2006,11 +2139,11 @@ export default function AcaiControlApp() {
                     )}
                     <button
                       onClick={saveCloseout}
-                      disabled={saving || !Number.isFinite(parseFloat(countedCash))}
+                      disabled={saving || !countedValid}
                       className="mt-2 w-full rounded-xl py-2.5 text-sm font-semibold"
                       style={{
-                        background: Number.isFinite(parseFloat(countedCash)) ? COLOR.acai : COLOR.line,
-                        color: Number.isFinite(parseFloat(countedCash)) ? "#fff" : COLOR.inkSoft,
+                        background: countedValid ? COLOR.acai : COLOR.line,
+                        color: countedValid ? "#fff" : COLOR.inkSoft,
                       }}
                     >
                       Save close-out

@@ -137,19 +137,45 @@ are not readable by anyone who finds the URL.
   `server/auth.js`) — never in plain text. Sessions are random tokens kept in the
   database and sent as an httpOnly cookie, so page scripts cannot read them.
 
-Two limits worth knowing, both from the same cause. Sales *and* stock levels live
-in one shop-data JSON blob that the browser writes, and selling has to decrement
-stock, so at the API level a sale and a manual restock are the same write:
+**Sale attribution is the server's, not the browser's.** `POST /api/sales` stamps
+the sale with whoever the session says is signed in and ignores any name the
+client sends, so a register cannot put someone else's name on a sale.
 
-- The **server does not enforce sale attribution** — a signed-in employee could
-  in principle edit whose name is on a sale.
-- The **inventory restriction is in the app, not the API** — the tab is hidden
-  and unreachable for register staff, but `/api/kv` cannot tell a restock from a
-  sale, so it cannot reject one.
+**The inventory restriction is the API's too.** Stock now only moves through two
+routes: a sale, which can take out exactly what its own ingredients justify, and
+`POST /api/stock`, which answers 403 to anyone who is not an owner or manager. The
+Inventory tab being hidden from register staff is no longer the only thing
+stopping them.
 
-Both close the same way: move sales and inventory out of the blob into their own
-tables and endpoints. Worth doing if these ever need to settle a dispute rather
-than keep honest people out of the wrong screen.
+## When the internet drops
+
+The register keeps taking money. A sale that cannot reach the server is written to
+the browser and sent when the connection returns, and the banner across the top
+says how many are still waiting, so nobody has to guess whether a sale is banked.
+
+What makes that safe with more than one register is that a sale is an **append**
+carrying an id the register generated, not a rewrite of the day:
+
+- `sales` is its own table (`server/sales.js`). Replaying a queued sale inserts
+  nothing the second time and does not decrement the stock twice.
+- Stock moves **in the same transaction as the sale**, from the consumption the
+  client sends, under a row lock. Two registers selling the last of something
+  cannot both decrement from the same stale number.
+- Restocking and voiding are deltas too, for the same reason.
+
+Sales used to live inside the shop-data blob, which the browser rewrote whole on
+every sale — one register coming back from an outage would have flattened
+everything the others sold in the meantime. Existing sales are moved out of the
+blob into the table automatically on first start after upgrading.
+
+A service worker (`public/sw.js`) caches the app itself so a reload mid-outage
+reopens the register instead of a browser error page, and the last signed-in user,
+menu and stock levels are mirrored locally so it opens ready to sell. API
+responses are never cached — a stale copy of the day's takings is worse than none,
+and the app already knows how to say it is offline.
+
+Two things genuinely need the connection: signing in for the first time on a
+device, and editing the menu.
 
 ## Sales tax
 

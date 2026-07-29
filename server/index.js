@@ -17,6 +17,7 @@ import {
   setPassword,
   userForToken,
 } from "./auth.js";
+import { adjustStock, ensureSalesSchema, listSales, recordSale, voidSale } from "./sales.js";
 
 const { Pool } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -179,6 +180,7 @@ async function ensureSchema() {
     );
   `);
   await ensureAuthSchema(pool);
+  await ensureSalesSchema(pool);
 }
 
 const app = express();
@@ -234,6 +236,17 @@ function requireUser(req, res, next) {
 function requireOwner(req, res, next) {
   if (!req.user) return res.status(401).json({ error: "unauthenticated" });
   if (req.user.role !== "owner") return res.status(403).json({ error: "owner_only" });
+  next();
+}
+
+// Restocking is the shift's job, not the register's. Now that stock only moves
+// through this route and the sale route, this is a real restriction rather than a
+// hidden tab: a register can take out what a bowl consumes and nothing else.
+function requireStockKeeper(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: "unauthenticated" });
+  if (req.user.role !== "owner" && req.user.role !== "manager") {
+    return res.status(403).json({ error: "manager_only" });
+  }
   next();
 }
 
@@ -342,6 +355,57 @@ app.delete("/api/users/:id", requireOwner, async (req, res, next) => {
 // the app only ever persists two keys today (shop data, menu config),
 // but the endpoint doesn't need to know that. Signed in only: the shop's
 // inventory and takings are not public.
+// Sales are appended rather than written as part of a whole-shop blob, so a register
+// coming back from offline replays its queue without flattening what the others sold
+// in the meantime. See server/sales.js.
+app.use("/api/sales", requireUser);
+
+app.get("/api/sales", async (req, res, next) => {
+  try {
+    const days = Math.min(365, Math.max(1, Number(req.query.days) || 30));
+    res.json({ sales: await listSales(pool, { days }) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/sales", async (req, res, next) => {
+  try {
+    const { sale, consumption } = req.body || {};
+    if (!sale || typeof sale !== "object" || !sale.id) {
+      return res.status(400).json({ error: "sale_with_id_required" });
+    }
+    // Who rang it up comes from the session, not from the browser: a register should
+    // not be able to put someone else's name on a sale.
+    const stamped = { ...sale, userId: req.user.id, userName: req.user.name };
+    res.json(await recordSale(pool, { sale: stamped, consumption }));
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/sales/:id/void", async (req, res, next) => {
+  try {
+    const { consumption } = req.body || {};
+    const result = await voidSale(pool, { id: req.params.id, by: req.user, consumption });
+    if (!result.found) return res.status(404).json({ error: "not_found" });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/stock", requireStockKeeper, async (req, res, next) => {
+  try {
+    const { deltas } = req.body || {};
+    if (!Array.isArray(deltas)) return res.status(400).json({ error: "deltas_required" });
+    await adjustStock(pool, deltas);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.use("/api/kv", requireUser);
 
 app.get("/api/kv/:key", async (req, res, next) => {
