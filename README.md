@@ -142,6 +142,22 @@ Once it's up, `https://<your-app>.up.railway.app/api/health` returns
 `npm start` runs `server/index.js`, which serves both the API and the
 built frontend (`dist/`) on the same port — one service, no CORS.
 
+### Checking that a deploy actually landed
+
+**Team** shows the running build under the signed-in name — `Version 4f2c1ab`, the
+commit it was built from. If that is not the commit you just deployed, the browser
+is running an older copy and the deploy is not the problem.
+
+That used to be a real trap. The service worker's cache name was a constant, so its
+activate step — whose only job is deleting caches that are not the current one —
+never deleted anything. Old builds stayed cached indefinitely, and because a
+navigation falls back to the cached index when the network hiccups, and that index
+names asset files which were also still cached, a phone could keep running a
+months-old version through any number of deploys. The cache name now carries the
+build id (`scripts/stamp-sw.mjs`), so each deploy gets a fresh cache and the
+previous one is dropped the moment the new worker activates — measured at about a
+second after the next visit.
+
 ## Staff accounts
 
 Nothing in the app is reachable without signing in, and the API enforces it —

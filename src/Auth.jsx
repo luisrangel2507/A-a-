@@ -2,6 +2,9 @@ import React, { useEffect, useState } from "react";
 import { AlertTriangle, KeyRound, LogOut, UserPlus, X } from "lucide-react";
 import auth, { authMessage } from "./lib/auth";
 import { COLOR } from "./theme";
+
+// Injected at build time by vite.config.js.
+const BUILD_ID = typeof __BUILD_ID__ === "string" ? __BUILD_ID__ : "dev";
 import { ASSIGNABLE_ROLES, canManageStaff, roleLabel } from "./lib/roles";
 import logo from "./assets/logo.png";
 
@@ -337,6 +340,12 @@ export function TeamPanel({ me, onSignOut, taxRate, onSaveTaxRate, menuEditor })
         </p>
         <p className="text-sm" style={{ color: COLOR.inkSoft }}>
           {me.username} · {roleLabel(me.role)}
+        </p>
+        {/* Which build is actually running. Without this, a deploy that landed and a
+            deploy that did not look identical from the phone, which is exactly the
+            question a cached service worker makes impossible to answer. */}
+        <p className="mt-0.5 font-mono-num text-xs" style={{ color: COLOR.inkSoft }}>
+          Version {BUILD_ID}
         </p>
         <button
           onClick={onSignOut}

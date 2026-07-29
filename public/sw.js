@@ -10,7 +10,10 @@
 // the stock levels is worse than no copy — the app already knows how to show that it
 // is offline.
 
-const CACHE = "quick-acai-shell-v1";
+// Stamped by scripts/stamp-sw.mjs at build time. A constant here is what let old
+// builds survive every deploy: activate only deletes caches that are not this one,
+// and if the name never changes, that is nothing.
+const CACHE = "quick-acai-__BUILD_ID__";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
