@@ -23,6 +23,7 @@ import storage, { SessionExpiredError } from "./lib/storage";
 import auth from "./lib/auth";
 import { COLOR } from "./theme";
 import { SignInScreen, TeamPanel } from "./Auth";
+import MenuEditor from "./MenuEditor";
 import { canSeeInventory, canVoidSale, canVoidAnySale, canCloseOut } from "./lib/roles";
 import bowlImage from "./assets/bowl.jpg";
 
@@ -1094,6 +1095,31 @@ export default function AcaiControlApp() {
     );
   }
 
+  // The menu and the store room are saved together: adding a flavour or a topping
+  // creates the ingredient it consumes, so writing one without the other would leave
+  // the menu offering something the inventory has never heard of.
+  async function saveMenu(nextMenu, nextIngredients, message) {
+    setSaving(true);
+    setMenu(nextMenu);
+    try {
+      await storage.set(STORAGE_MENU, JSON.stringify(nextMenu));
+      if (nextIngredients !== ingredients) {
+        await persistShop(nextIngredients, sales);
+      }
+      // The bowl being built may now hold a topping that is no longer on the menu, or
+      // be missing one that just became free.
+      setBuilder((b) => ({
+        ...b,
+        productId: nextMenu.products.some((p) => p.id === b.productId) ? b.productId : null,
+        toppingIds: b.toppingIds.filter((id) => nextMenu.toppings.some((t) => t.id === id)),
+      }));
+      if (message) showToast(message);
+    } catch (e) {
+      handleStorageError(e, "Couldn't save the menu. Try again.");
+    }
+    setSaving(false);
+  }
+
   // The rate lives with the menu, so every register picks it up from the shared
   // database rather than each device keeping its own idea of the tax.
   async function saveTaxRate(rate) {
@@ -2141,6 +2167,14 @@ export default function AcaiControlApp() {
             onSignOut={signOut}
             taxRate={taxRate}
             onSaveTaxRate={saveTaxRate}
+            menuEditor={
+              <MenuEditor
+                menu={menu}
+                ingredients={ingredients}
+                onSave={saveMenu}
+                saving={saving}
+              />
+            }
           />
         )}
       </div>

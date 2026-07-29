@@ -262,7 +262,7 @@ function SalesTaxCard({ rate, onSave }) {
  * Staff list, owner only. Accounts are deactivated rather than deleted, so past
  * sales keep showing who rang them up.
  */
-export function TeamPanel({ me, onSignOut, taxRate, onSaveTaxRate }) {
+export function TeamPanel({ me, onSignOut, taxRate, onSaveTaxRate, menuEditor }) {
   const [users, setUsers] = useState(null);
   const [error, setError] = useState(null);
   const [adding, setAdding] = useState(false);
@@ -351,6 +351,9 @@ export function TeamPanel({ me, onSignOut, taxRate, onSaveTaxRate }) {
       {isOwner && (
         <SalesTaxCard rate={taxRate} onSave={onSaveTaxRate} />
       )}
+      {/* The menu itself — prices, flavours, toppings — passed in rather than built
+          here, since it edits the shop's data and this file only knows about people. */}
+      {isOwner && menuEditor}
       {!isOwner && (
         <p className="px-1 text-sm" style={{ color: COLOR.inkSoft }}>
           Only the owner can manage staff accounts.

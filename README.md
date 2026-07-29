@@ -7,14 +7,25 @@ inventory and sales.
 
 ## Menu
 
-9 flavors (Organic Pure Açaí, Cacao Cream, Piña Colada Spirulina, Coconut
-Cream, Passion Fruit Cream, Dragon Fruit Sorbet, Mango Cream, Spicy Mango,
-Matcha Cream), 3 sizes (Small $9.99 / Medium $14.99 / Large $18.99), and 28
-toppings across Dairy, Nuts, Fruits, and Others at $0.99 each — with Granola,
-Strawberry, Banana, and Peanut Butter included free by default (removable).
-All of this lives in `defaultMenu()` and `defaultIngredients()` in
-`src/App.jsx` — edit those two functions to change prices, flavors, or
-toppings.
+It starts with 9 flavors (Organic Pure Açaí, Cacao Cream, Piña Colada Spirulina,
+Coconut Cream, Passion Fruit Cream, Dragon Fruit Sorbet, Mango Cream, Spicy
+Mango, Matcha Cream), 3 sizes (Small $9.99 / Medium $14.99 / Large $18.99), and
+28 toppings across Dairy, Nuts, Fruits, and Others at $0.99 each — with Granola,
+Strawberry, Banana, and Peanut Butter included free (removable).
+
+**The owner edits all of it in the app**, under **Team → Prices / Free toppings /
+Flavors / Toppings**: prices by size, what an extra topping costs, which toppings
+come free, and adding, renaming or removing flavors and toppings. No code change,
+no redeploy.
+
+Adding a flavor or topping also creates the ingredient it consumes, starting at
+zero stock — the app should not claim to have something in the store room that
+nobody put there, so restock it under **Inventory** before selling it. Removing
+one takes it off the menu but leaves its ingredient and whatever stock is left,
+and past sales keep the name and price they were charged.
+
+`defaultMenu()` and `defaultIngredients()` in `src/App.jsx` are only the starting
+point for a brand-new deployment.
 
 ## Taking an order
 
