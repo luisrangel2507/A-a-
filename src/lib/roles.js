@@ -16,6 +16,14 @@ export const canSeeInventory = (role) => role === "owner" || role === "manager";
 // Staff accounts stay with the admin.
 export const canManageStaff = (role) => role === "owner";
 
+// Voiding a sale puts money back and stock back, so it is not something to leave
+// wide open. But a mis-ring has to be fixable by whoever made it, right then, or
+// the register stays wrong until a manager walks over: register staff can void
+// their own sale from today, and whoever runs the shop can void any of them.
+export const canVoidAnySale = (role) => role === "owner" || role === "manager";
+export const canVoidSale = (role, sale, userId) =>
+  canVoidAnySale(role) || (Boolean(userId) && sale.userId === userId);
+
 // Roles the owner can hand out. The owner role is not in the list: it is created
 // once, during first-run setup.
 export const ASSIGNABLE_ROLES = [

@@ -23,7 +23,7 @@ import storage, { SessionExpiredError } from "./lib/storage";
 import auth from "./lib/auth";
 import { COLOR } from "./theme";
 import { SignInScreen, TeamPanel } from "./Auth";
-import { canSeeInventory } from "./lib/roles";
+import { canSeeInventory, canVoidSale, canVoidAnySale } from "./lib/roles";
 import bowlImage from "./assets/bowl.jpg";
 
 // Photos are picked up from the filesystem by name: drop mango_cream.jpg into
@@ -99,6 +99,24 @@ const formatRate = (rate) =>
 
 const money = (n) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n || 0);
+
+// What one bowl takes out of the store room: its flavour base, scaled by size, plus
+// a serving of each topping. Shared by selling and by voiding, so a void puts back
+// exactly what the sale took — the two can never drift apart.
+function consumptionFor(sale, menu, ingredients) {
+  const out = [];
+  const product = menu.products.find((p) => p.id === sale.productId);
+  if (product) {
+    const base = ingredients.find((i) => i.id === product.baseIngredientId);
+    if (base) out.push({ id: base.id, amount: base.per * product.baseUnits[sale.size] });
+  }
+  (sale.toppingIds || []).forEach((tid) => {
+    const t = menu.toppings.find((tp) => tp.id === tid);
+    const ing = t && ingredients.find((i) => i.id === t.ingredientId);
+    if (ing) out.push({ id: ing.id, amount: ing.per });
+  });
+  return out;
+}
 
 const todayKey = (d = new Date()) => d.toISOString().slice(0, 10);
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -662,6 +680,8 @@ export default function AcaiControlApp() {
   const [tipCustom, setTipCustom] = useState("");
   const [payMethod, setPayMethod] = useState(null);
   const [cashGiven, setCashGiven] = useState("");
+  // Voiding puts money and stock back, so it asks first.
+  const [voiding, setVoiding] = useState(null);
   const cartSectionRef = useRef(null);
 
   useEffect(() => {
@@ -875,18 +895,7 @@ export default function AcaiControlApp() {
       if (ing) ing.stock = Math.max(0, ing.stock - amount);
     };
     cart.forEach((item) => {
-      const product = menu.products.find((p) => p.id === item.productId);
-      if (product) {
-        const baseIng = nextIngredients.find((i) => i.id === product.baseIngredientId);
-        if (baseIng) consume(product.baseIngredientId, baseIng.per * product.baseUnits[item.size]);
-      }
-      item.toppingIds.forEach((tid) => {
-        const t = menu.toppings.find((tp) => tp.id === tid);
-        if (t) {
-          const ing = nextIngredients.find((i) => i.id === t.ingredientId);
-          if (ing) consume(ing.id, ing.per);
-        }
-      });
+      consumptionFor(item, menu, nextIngredients).forEach(({ id, amount }) => consume(id, amount));
     });
     const now = new Date().toISOString();
     const newSales = [
@@ -919,6 +928,35 @@ export default function AcaiControlApp() {
     setSaving(false);
     closePayment();
     showToast(`Charged ${money(amountDue)}`);
+  }
+
+  // A mis-ring is not rare, and until now there was no way back from one: the wrong
+  // money stayed in the day's takings and the ingredients it claimed to have used
+  // never came back. The sale is marked rather than deleted, so the correction is
+  // itself on the record and the day can still be explained afterwards.
+  async function voidSale(saleId) {
+    const sale = sales.find((s) => s.id === saleId);
+    if (!sale || sale.voided) return;
+    setSaving(true);
+    const nextIngredients = ingredients.map((i) => ({ ...i }));
+    consumptionFor(sale, menu, nextIngredients).forEach(({ id, amount }) => {
+      const ing = nextIngredients.find((i) => i.id === id);
+      if (ing) ing.stock += amount;
+    });
+    const nextSales = sales.map((s) =>
+      s.id === saleId
+        ? {
+            ...s,
+            voided: true,
+            voidedAt: new Date().toISOString(),
+            voidedById: me?.id || null,
+            voidedByName: me?.name || null,
+          }
+        : s
+    );
+    await persistShop(nextIngredients, nextSales);
+    setSaving(false);
+    showToast(`Voided ${money(sale.price + (sale.tax || 0) + (sale.tip || 0))}`);
   }
 
   // The rate lives with the menu, so every register picks it up from the shared
@@ -958,7 +996,11 @@ export default function AcaiControlApp() {
   // ---------- Reports ----------
   const report = useMemo(() => {
     const today = todayKey();
-    const todaySales = sales.filter((s) => s.date.slice(0, 10) === today);
+    // Voided sales stay in the record but count for nothing — not in the takings, not
+    // in the charts, not in anyone's total. `live` is what actually happened.
+    const live = sales.filter((s) => !s.voided);
+    const todayAll = sales.filter((s) => s.date.slice(0, 10) === today);
+    const todaySales = todayAll.filter((s) => !s.voided);
     // Takings split three ways, because tax collected is not the shop's money —
     // it is held for the state. Sales recorded before tax was configured have no
     // tax field and count as zero.
@@ -979,7 +1021,7 @@ export default function AcaiControlApp() {
     });
 
     const byDay = {};
-    sales.forEach((s) => {
+    live.forEach((s) => {
       const k = s.date.slice(0, 10);
       byDay[k] = (byDay[k] || 0) + s.price;
     });
@@ -992,13 +1034,13 @@ export default function AcaiControlApp() {
     }
 
     const prodCount = {};
-    sales.forEach((s) => {
+    live.forEach((s) => {
       prodCount[s.productName] = (prodCount[s.productName] || 0) + 1;
     });
     const topProduct = Object.entries(prodCount).sort((a, b) => b[1] - a[1])[0];
 
     const topCount = {};
-    sales.forEach((s) =>
+    live.forEach((s) =>
       s.toppingIds.forEach((tid) => {
         const t = menu.toppings.find((x) => x.id === tid);
         if (t) topCount[t.name] = (topCount[t.name] || 0) + 1;
@@ -1020,11 +1062,15 @@ export default function AcaiControlApp() {
     });
     const people = Object.values(byPerson).sort((a, b) => b.total - a.total);
 
+    // Newest first: correcting a mistake means finding the sale you just rang up.
+    const todayLog = [...todayAll].sort((a, b) => b.date.localeCompare(a.date));
+
     return {
       todayTotal,
       todayTax,
       todayTips,
       takings,
+      todayLog,
       todayCollected,
       todayCount: todaySales.length,
       days,
@@ -1127,6 +1173,45 @@ export default function AcaiControlApp() {
         >
           {toast.isError ? <AlertTriangle size={14} /> : <Check size={14} />}
           {toast.msg}
+        </div>
+      )}
+
+      {voiding && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center px-6" style={{ background: "rgba(43,18,36,0.45)" }}>
+          <div className="w-full max-w-sm rounded-2xl p-5" style={{ background: COLOR.card }}>
+            <p className="text-base font-semibold" style={{ color: COLOR.ink }}>Void this sale?</p>
+            <p className="mt-1 text-sm" style={{ color: COLOR.inkSoft }}>
+              {voiding.productName} · <span className="capitalize">{voiding.size}</span> ·{" "}
+              <span className="font-mono-num">
+                {money(voiding.price + (voiding.tax || 0) + (voiding.tip || 0))}
+              </span>
+            </p>
+            <p className="mt-2 text-sm" style={{ color: COLOR.inkSoft }}>
+              It stops counting toward the day's takings and its ingredients go back
+              into stock. The sale stays on the record, marked as voided by you.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => setVoiding(null)}
+                className="flex-1 rounded-xl border py-2.5 text-sm font-semibold"
+                style={{ borderColor: COLOR.line, color: COLOR.inkSoft }}
+              >
+                Keep it
+              </button>
+              <button
+                onClick={() => {
+                  const id = voiding.id;
+                  setVoiding(null);
+                  voidSale(id);
+                }}
+                disabled={saving}
+                className="flex-1 rounded-xl py-2.5 text-sm font-semibold"
+                style={{ background: COLOR.alert, color: "#fff" }}
+              >
+                Void it
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1650,6 +1735,77 @@ export default function AcaiControlApp() {
                     {money(report.todayTips)}
                   </span>{" "}
                   in tips — the staff's, not the shop's.
+                </p>
+              )}
+            </div>
+
+            {/* Today's sales, so a wrong one can be found and undone. */}
+            <div className="rounded-2xl p-4" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
+              <p className="text-base font-semibold mb-3">Today's sales</p>
+              {report.todayLog.length === 0 ? (
+                <p className="text-sm" style={{ color: COLOR.inkSoft }}>Nothing rung up yet today.</p>
+              ) : (
+                <div className="space-y-2">
+                  {report.todayLog.map((s) => {
+                    const gross = s.price + (s.tax || 0) + (s.tip || 0);
+                    const mine = canVoidSale(me?.role, s, me?.id);
+                    return (
+                      <div
+                        key={s.id}
+                        className="flex items-start justify-between gap-2 border-b pb-2 last:border-0 last:pb-0"
+                        style={{ borderColor: COLOR.line, opacity: s.voided ? 0.55 : 1 }}
+                      >
+                        <div className="min-w-0">
+                          <p
+                            className="truncate text-sm font-medium"
+                            style={{
+                              color: COLOR.ink,
+                              textDecoration: s.voided ? "line-through" : "none",
+                            }}
+                          >
+                            {s.productName} · <span className="capitalize">{s.size}</span>
+                          </p>
+                          <p className="text-xs" style={{ color: COLOR.inkSoft }}>
+                            {new Date(s.date).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                            {s.userName ? ` · ${s.userName}` : ""}
+                            {s.payment ? ` · ${s.payment === "cash" ? "Cash" : "Card"}` : ""}
+                            {s.tip > 0 ? ` · ${money(s.tip)} tip` : ""}
+                          </p>
+                          {s.voided && (
+                            <p className="text-xs font-medium" style={{ color: COLOR.alert }}>
+                              Voided{s.voidedByName ? ` by ${s.voidedByName}` : ""} — stock returned
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span
+                            className="font-mono-num text-sm font-semibold"
+                            style={{
+                              color: COLOR.ink,
+                              textDecoration: s.voided ? "line-through" : "none",
+                            }}
+                          >
+                            {money(gross)}
+                          </span>
+                          {!s.voided && mine && (
+                            <button
+                              onClick={() => setVoiding(s)}
+                              disabled={saving}
+                              className="rounded-lg border px-2 py-1 text-xs font-medium"
+                              style={{ borderColor: COLOR.line, color: COLOR.alert }}
+                            >
+                              Void
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {!canVoidAnySale(me?.role) && (
+                <p className="mt-2 text-xs" style={{ color: COLOR.inkSoft }}>
+                  You can void your own sales from today. Anything else needs a manager.
                 </p>
               )}
             </div>
