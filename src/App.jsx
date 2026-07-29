@@ -251,6 +251,151 @@ function StepHeader({ onBack, parts = [] }) {
   );
 }
 
+// Taking the money is a screen of its own, over the register rather than beside it:
+// the tip has to be asked for before the card is run, and how they paid has to be
+// recorded or the drawer cannot be settled at close.
+function PaymentSheet({
+  subtotal, tax, taxRate, tip, total, tipChoice, onTipChoice, tipCustom, onTipCustom,
+  method, onMethod, cashGiven, onCashGiven, change, canCharge, saving, onCharge, onClose,
+}) {
+  const Row = ({ label, value, strong }) => (
+    <div className="flex items-baseline justify-between">
+      <span className={strong ? "text-base font-semibold" : "text-sm"} style={{ color: strong ? COLOR.ink : COLOR.inkSoft }}>
+        {label}
+      </span>
+      <span
+        className={`font-mono-num ${strong ? "text-xl font-semibold" : "text-sm"}`}
+        style={{ color: strong ? COLOR.acai : COLOR.inkSoft }}
+      >
+        {money(value)}
+      </span>
+    </div>
+  );
+  return (
+    <div className="fixed inset-0 z-40 flex flex-col justify-end" style={{ background: "rgba(43,18,36,0.45)" }}>
+      <div
+        className="pad-home-indicator max-h-full w-full max-w-md self-center overflow-y-auto rounded-t-2xl px-4 pt-4"
+        style={{ background: COLOR.card }}
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-base font-semibold" style={{ color: COLOR.ink }}>Take payment</p>
+          <button onClick={onClose} aria-label="Close" className="rounded-lg p-1">
+            <X size={18} color={COLOR.inkSoft} />
+          </button>
+        </div>
+
+        <div className="space-y-1 rounded-xl px-3 py-2.5" style={{ background: COLOR.bg }}>
+          <Row label="Subtotal" value={subtotal} />
+          {taxRate > 0 && <Row label={`Sales tax (${formatRate(taxRate)})`} value={tax} />}
+          {tip > 0 && <Row label="Tip" value={tip} />}
+          <div className="border-t pt-1.5" style={{ borderColor: COLOR.line }}>
+            <Row label="Total" value={total} strong />
+          </div>
+        </div>
+
+        <p className="mb-1.5 mt-3 text-sm font-semibold" style={{ color: COLOR.ink }}>Tip</p>
+        <div className="grid grid-cols-4 gap-1.5">
+          {[["No tip", 0], ["15%", 0.15], ["18%", 0.18], ["20%", 0.2]].map(([label, value]) => (
+            <button
+              key={label}
+              onClick={() => onTipChoice(value)}
+              className="rounded-xl border-2 py-2 text-sm font-medium"
+              style={{
+                borderColor: tipChoice === value ? COLOR.kiwi : COLOR.line,
+                background: tipChoice === value ? "#EFF6E4" : "transparent",
+                color: COLOR.ink,
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="mt-1.5 flex items-center gap-2">
+          <button
+            onClick={() => onTipChoice("custom")}
+            className="rounded-xl border-2 px-3 py-2 text-sm font-medium"
+            style={{
+              borderColor: tipChoice === "custom" ? COLOR.kiwi : COLOR.line,
+              background: tipChoice === "custom" ? "#EFF6E4" : "transparent",
+              color: COLOR.ink,
+            }}
+          >
+            Other
+          </button>
+          {tipChoice === "custom" && (
+            <input
+              inputMode="decimal"
+              value={tipCustom}
+              onChange={(e) => onTipCustom(e.target.value)}
+              placeholder="0.00"
+              autoFocus
+              className="font-mono-num w-full rounded-xl border px-3 py-2 text-sm"
+              style={{ borderColor: COLOR.line, color: COLOR.ink }}
+            />
+          )}
+        </div>
+
+        <p className="mb-1.5 mt-3 text-sm font-semibold" style={{ color: COLOR.ink }}>Paid with</p>
+        <div className="grid grid-cols-2 gap-2">
+          {[["Cash", "cash"], ["Card", "card"]].map(([label, value]) => (
+            <button
+              key={value}
+              onClick={() => onMethod(value)}
+              className="rounded-xl border-2 py-3 text-base font-medium"
+              style={{
+                borderColor: method === value ? COLOR.acai : COLOR.line,
+                background: method === value ? COLOR.acaiPale : "transparent",
+                color: COLOR.ink,
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Counting change in your head at a queue is where cash drawers go wrong. */}
+        {method === "cash" && (
+          <div className="mt-2 rounded-xl px-3 py-2.5" style={{ background: COLOR.bg }}>
+            <label className="text-xs font-medium" style={{ color: COLOR.inkSoft }}>
+              Cash received (optional)
+            </label>
+            <input
+              inputMode="decimal"
+              value={cashGiven}
+              onChange={(e) => onCashGiven(e.target.value)}
+              placeholder={total.toFixed(2)}
+              className="font-mono-num mt-1 w-full rounded-xl border px-3 py-2 text-base"
+              style={{ borderColor: COLOR.line, color: COLOR.ink }}
+            />
+            {cashGiven !== "" && (
+              <p
+                className="mt-1.5 text-sm font-semibold"
+                style={{ color: change < 0 ? COLOR.alert : COLOR.kiwi }}
+              >
+                {change < 0
+                  ? `${money(-change)} short`
+                  : `Change ${money(change)}`}
+              </p>
+            )}
+          </div>
+        )}
+
+        <button
+          onClick={onCharge}
+          disabled={!canCharge || saving}
+          className="mb-4 mt-3 w-full rounded-xl py-3 text-base font-semibold"
+          style={{
+            background: canCharge && !saving ? COLOR.passion : COLOR.line,
+            color: canCharge && !saving ? "#fff" : COLOR.inkSoft,
+          }}
+        >
+          {saving ? "Charging…" : method ? `Charge ${money(total)}` : "Pick cash or card"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // Nothing advances without this, and a long category pushes it past the fold, so it
 // rides the bottom of the screen instead of waiting at the end of the list. Sticky
 // rather than fixed: it only lifts when it would otherwise be off-screen, and it
@@ -509,6 +654,14 @@ export default function AcaiControlApp() {
   const [restockAmt, setRestockAmt] = useState("");
   const [newIngName, setNewIngName] = useState("");
   const [saving, setSaving] = useState(false);
+  // Taking payment is its own screen rather than one Charge button: how they paid
+  // has to be recorded to settle the drawer at close, and the tip has to be asked
+  // for before the money changes hands.
+  const [paying, setPaying] = useState(false);
+  const [tipChoice, setTipChoice] = useState(0);
+  const [tipCustom, setTipCustom] = useState("");
+  const [payMethod, setPayMethod] = useState(null);
+  const [cashGiven, setCashGiven] = useState("");
   const cartSectionRef = useRef(null);
 
   useEffect(() => {
@@ -692,8 +845,29 @@ export default function AcaiControlApp() {
   const cartTax = Math.round(cartSubtotal * taxRate * 100) / 100;
   const cartTotal = cartSubtotal + cartTax;
 
+  // Tips are worked out on the pre-tax subtotal, the usual US practice — tipping on
+  // the tax means tipping the state. Never taxed themselves: a tip is the staff's
+  // money passing through, not the shop's revenue.
+  const tipAmount =
+    tipChoice === "custom"
+      ? Math.max(0, Math.round((parseFloat(tipCustom) || 0) * 100) / 100)
+      : Math.round(cartSubtotal * tipChoice * 100) / 100;
+  const amountDue = Math.round((cartSubtotal + cartTax + tipAmount) * 100) / 100;
+  const cashChange = Math.round(((parseFloat(cashGiven) || 0) - amountDue) * 100) / 100;
+  const canCharge =
+    cart.length > 0 &&
+    (payMethod === "card" || (payMethod === "cash" && (!cashGiven || cashChange >= 0)));
+
+  function closePayment() {
+    setPaying(false);
+    setTipChoice(0);
+    setTipCustom("");
+    setPayMethod(null);
+    setCashGiven("");
+  }
+
   async function checkout() {
-    if (cart.length === 0) return;
+    if (cart.length === 0 || !payMethod) return;
     setSaving(true);
     const nextIngredients = ingredients.map((i) => ({ ...i }));
     const consume = (ingredientId, amount) => {
@@ -729,6 +903,12 @@ export default function AcaiControlApp() {
         // rates change, and a sale has to stay explainable after they do.
         taxRate,
         tax: cartSubtotal > 0 ? Math.round((cartTax * item.price / cartSubtotal) * 100) / 100 : 0,
+        // The order's tip split over its bowls the same way the tax is, so a single
+        // sale row stays self-contained and the day's tips add back up.
+        tip: cartSubtotal > 0 ? Math.round((tipAmount * item.price / cartSubtotal) * 100) / 100 : 0,
+        // Cash or card. Without this the drawer cannot be settled at close: there is
+        // nothing to compare the physical money against.
+        payment: payMethod,
         // Who rang it up, taken from the signed-in session rather than typed in.
         userId: me?.id || null,
         userName: me?.name || null,
@@ -737,7 +917,8 @@ export default function AcaiControlApp() {
     await persistShop(nextIngredients, newSales);
     setCart([]);
     setSaving(false);
-    showToast(`Charged ${money(cartTotal)}`);
+    closePayment();
+    showToast(`Charged ${money(amountDue)}`);
   }
 
   // The rate lives with the menu, so every register picks it up from the shared
@@ -783,7 +964,19 @@ export default function AcaiControlApp() {
     // tax field and count as zero.
     const todayTotal = todaySales.reduce((s, i) => s + i.price, 0);
     const todayTax = todaySales.reduce((s, i) => s + (i.tax || 0), 0);
-    const todayCollected = todayTotal + todayTax;
+    // Tips are the staff's, not the shop's, so they are kept apart from revenue the
+    // same way tax is. Sales taken before tips existed have no field and count zero.
+    const todayTips = todaySales.reduce((s, i) => s + (i.tip || 0), 0);
+    const todayCollected = todayTotal + todayTax + todayTips;
+
+    // What should be in the drawer versus what went through the card reader. Sales
+    // from before payment was recorded have no method and are counted separately
+    // rather than guessed into one of the two.
+    const takings = { cash: 0, card: 0, unknown: 0 };
+    todaySales.forEach((s) => {
+      const bucket = s.payment === "cash" || s.payment === "card" ? s.payment : "unknown";
+      takings[bucket] += s.price + (s.tax || 0) + (s.tip || 0);
+    });
 
     const byDay = {};
     sales.forEach((s) => {
@@ -819,9 +1012,10 @@ export default function AcaiControlApp() {
     // name, so they are grouped under a placeholder rather than dropped.
     const byPerson = {};
     todaySales.forEach((s) => {
-      const who = s.userName || "Sin registrar";
-      if (!byPerson[who]) byPerson[who] = { name: who, total: 0, count: 0 };
+      const who = s.userName || "Not recorded";
+      if (!byPerson[who]) byPerson[who] = { name: who, total: 0, count: 0, tips: 0 };
       byPerson[who].total += s.price;
+      byPerson[who].tips += s.tip || 0;
       byPerson[who].count += 1;
     });
     const people = Object.values(byPerson).sort((a, b) => b.total - a.total);
@@ -829,6 +1023,8 @@ export default function AcaiControlApp() {
     return {
       todayTotal,
       todayTax,
+      todayTips,
+      takings,
       todayCollected,
       todayCount: todaySales.length,
       days,
@@ -932,6 +1128,29 @@ export default function AcaiControlApp() {
           {toast.isError ? <AlertTriangle size={14} /> : <Check size={14} />}
           {toast.msg}
         </div>
+      )}
+
+      {paying && (
+        <PaymentSheet
+          subtotal={cartSubtotal}
+          tax={cartTax}
+          taxRate={taxRate}
+          tip={tipAmount}
+          total={amountDue}
+          tipChoice={tipChoice}
+          onTipChoice={setTipChoice}
+          tipCustom={tipCustom}
+          onTipCustom={setTipCustom}
+          method={payMethod}
+          onMethod={setPayMethod}
+          cashGiven={cashGiven}
+          onCashGiven={setCashGiven}
+          change={cashChange}
+          canCharge={canCharge}
+          saving={saving}
+          onCharge={checkout}
+          onClose={closePayment}
+        />
       )}
 
       {/* The page itself scrolls — this used to carry overflow-y-auto, which made it
@@ -1276,12 +1495,11 @@ export default function AcaiControlApp() {
                     </div>
                   </div>
                   <button
-                    onClick={checkout}
-                    disabled={saving}
+                    onClick={() => setPaying(true)}
                     className="w-full rounded-xl py-3 text-base font-semibold"
                     style={{ background: COLOR.passion, color: "#fff" }}
                   >
-                    {saving ? "Charging…" : "Charge"}
+                    Take payment
                   </button>
                 </div>
               )}
@@ -1361,9 +1579,9 @@ export default function AcaiControlApp() {
                 <p className="text-sm" style={{ color: "#D9B9CC" }}>Sales today</p>
                 <p className="font-mono-num text-xl font-semibold mt-1" style={{ color: "#fff" }}>{money(report.todayTotal)}</p>
                 <p className="text-sm mt-0.5" style={{ color: "#D9B9CC" }}>{report.todayCount} bowls</p>
-                {report.todayTax > 0 && (
+                {(report.todayTax > 0 || report.todayTips > 0) && (
                   <p className="mt-2 text-xs leading-snug" style={{ color: "#D9B9CC" }}>
-                    before tax · took{" "}
+                    before tax and tips · took{" "}
                     <span className="font-mono-num">{money(report.todayCollected)}</span>
                   </p>
                 )}
@@ -1408,6 +1626,34 @@ export default function AcaiControlApp() {
               </div>
             )}
 
+            {/* Cash versus card, because at close the cash is the only half that has
+                to be counted by hand and matched. */}
+            <div className="rounded-2xl p-4" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
+              <p className="text-base font-semibold mb-2">Taken today</p>
+              <div className="space-y-1">
+                {[["Cash", report.takings.cash], ["Card", report.takings.card],
+                  ["Not recorded", report.takings.unknown]]
+                  .filter(([label, v]) => v > 0 || label !== "Not recorded")
+                  .map(([label, value]) => (
+                    <div key={label} className="flex items-baseline justify-between">
+                      <span className="text-sm" style={{ color: COLOR.inkSoft }}>{label}</span>
+                      <span className="font-mono-num text-sm font-semibold" style={{ color: COLOR.ink }}>
+                        {money(value)}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+              {report.todayTips > 0 && (
+                <p className="mt-2 border-t pt-2 text-sm" style={{ borderColor: COLOR.line, color: COLOR.inkSoft }}>
+                  Includes{" "}
+                  <span className="font-mono-num font-semibold" style={{ color: COLOR.kiwi }}>
+                    {money(report.todayTips)}
+                  </span>{" "}
+                  in tips — the staff's, not the shop's.
+                </p>
+              )}
+            </div>
+
             <div className="rounded-2xl p-4" style={{ background: COLOR.card, border: `1px solid ${COLOR.line}` }}>
               <p className="text-base font-semibold mb-3">Sold by</p>
               {report.people.length === 0 ? (
@@ -1426,6 +1672,15 @@ export default function AcaiControlApp() {
                         <span className="font-mono-num font-semibold" style={{ color: COLOR.acai }}>
                           {money(p.total)}
                         </span>
+                        {p.tips > 0 && (
+                          <>
+                            {" · "}
+                            <span className="font-mono-num font-semibold" style={{ color: COLOR.kiwi }}>
+                              {money(p.tips)}
+                            </span>{" "}
+                            tips
+                          </>
+                        )}
                       </span>
                     </div>
                   ))}
