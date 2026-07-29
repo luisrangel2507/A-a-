@@ -381,17 +381,50 @@ function Receipt({ order, menu, onClose }) {
 // of stranding someone in front of a blank screen.
 function Intro({ onDone }) {
   const videoRef = useRef(null);
+  // Held in a ref so the effect below can run exactly once. The parent re-renders
+  // several times while the shop data loads, and an effect that re-ran with it would
+  // call play() again each time — a second play() interrupts the first, which rejects,
+  // which used to be read as "cannot play" and skipped the whole thing.
+  const doneRef = useRef(onDone);
+  doneRef.current = onDone;
+
+  // Reduced motion gets the logo held still rather than nothing at all: it asks for
+  // less movement, not for the shop to lose its title card.
+  const [mode, setMode] = useState(() =>
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "still" : "video"
+  );
 
   useEffect(() => {
-    // Whatever happens to the video, nobody waits longer than this to reach the
-    // register.
-    const bail = setTimeout(onDone, 5000);
-    // Autoplay can still be refused; if it is, do not sit on a frozen first frame.
-    const v = videoRef.current;
-    const play = v?.play?.();
-    if (play?.catch) play.catch(() => onDone());
-    return () => clearTimeout(bail);
-  }, [onDone]);
+    const finish = () => doneRef.current();
+    // Nobody waits longer than this to reach the register, whatever the video does.
+    const bail = setTimeout(finish, 5000);
+    let hold;
+
+    if (mode === "still") {
+      // Long enough to read as deliberate, short enough not to be a wait.
+      hold = setTimeout(finish, 1400);
+    } else {
+      const play = videoRef.current?.play?.();
+      if (play?.catch) play.catch(() => setMode("still"));
+      // One watchdog instead of three listeners. A phone in Low Power Mode refusing
+      // to autoplay, a browser that takes neither codec, and a file that cannot be
+      // reached all look the same from here: the clock is not moving. In particular
+      // a <video> with <source> children fires its error on the sources, not on
+      // itself, so waiting for onError would have waited forever.
+      //
+      // Flipping is invisible when it happens — the poster and the still are the
+      // same frame — so the cost of being wrong is a missed animation, not a jump.
+      hold = setTimeout(() => {
+        const v = videoRef.current;
+        if (!v || v.readyState < 2 || v.paused || v.currentTime === 0) setMode("still");
+      }, 1500);
+    }
+
+    return () => {
+      clearTimeout(bail);
+      clearTimeout(hold);
+    };
+  }, [mode]);
 
   return (
     <button
@@ -401,24 +434,35 @@ function Intro({ onDone }) {
       className="fixed inset-0 z-50 flex flex-col items-center justify-center"
       style={{ background: COLOR.bg }}
     >
-      <video
-        ref={videoRef}
-        poster={introPoster}
-        muted
-        playsInline
-        autoPlay
-        preload="auto"
-        onEnded={onDone}
-        onError={onDone}
-        className="w-full"
-        style={{ maxWidth: 420, aspectRatio: "1 / 1" }}
-      >
-        {/* Two sources so this plays wherever it is opened: Safari and iOS need the
-            H.264, and a Chromium built without those codecs takes the VP9. The
-            browser downloads only the one it picks. */}
-        <source src={introWebm} type="video/webm" />
-        <source src={introMp4} type="video/mp4" />
-      </video>
+      {mode === "still" ? (
+        <img
+          src={introPoster}
+          alt="Quick Açaí"
+          className="w-full"
+          style={{ maxWidth: 420, aspectRatio: "1 / 1" }}
+        />
+      ) : (
+        <video
+          ref={videoRef}
+          poster={introPoster}
+          muted
+          playsInline
+          autoPlay
+          preload="auto"
+          onEnded={onDone}
+          // A codec the browser refuses, or a file it cannot reach: show the still
+          // rather than dropping the customer straight into the register.
+          onError={() => setMode("still")}
+          className="w-full"
+          style={{ maxWidth: 420, aspectRatio: "1 / 1" }}
+        >
+          {/* Two sources so this plays wherever it is opened: Safari and iOS need the
+              H.264, and a Chromium built without those codecs takes the VP9. The
+              browser downloads only the one it picks. */}
+          <source src={introWebm} type="video/webm" />
+          <source src={introMp4} type="video/mp4" />
+        </video>
+      )}
       <span className="mt-6 text-xs font-medium" style={{ color: COLOR.inkSoft }}>
         Tap to skip
       </span>
@@ -844,11 +888,11 @@ export default function AcaiControlApp() {
   const [sheetClosing, setSheetClosing] = useState(false);
   const [introSeen, setIntroSeen] = useState(() => {
     try {
-      if (sessionStorage.getItem("intro-seen-v1")) return true;
+      return Boolean(sessionStorage.getItem("intro-seen-v1"));
     } catch {
-      // Private mode or a blocked store: play it, that is the harmless direction.
+      // Private mode or a blocked store: show it, which is the harmless direction.
+      return false;
     }
-    return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
   });
 
   function finishIntro() {

@@ -40,9 +40,12 @@ the time the bowl finishes assembling.
   seconds regardless of what the video does.
 - **Muted and inline**, which is the only way a phone autoplays at all, and the
   right behaviour for a counter.
-- **Skipped entirely under reduced motion.**
-- **Skipped if it cannot play** — a browser without the codec, or a first-ever
-  open with no connection. It gets out of the way rather than stranding anyone.
+- **Always shows the brand.** Reduced motion, a phone refusing to autoplay in Low
+  Power Mode, a browser that takes neither codec, a first-ever open with no
+  connection — each of those falls back to the logo held still for a beat rather
+  than to a frozen frame or to nothing. A watchdog covers all of them at once: if
+  the clock is not moving shortly after mount, it switches to the still. The
+  poster and the still are the same frame, so the switch is invisible.
 
 The source was 4.19 MB at 2880x2880 with an audio track. It ships at 720x720 with
 no audio, in two formats so it plays everywhere (Safari and iOS take the H.264,
