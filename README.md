@@ -27,6 +27,36 @@ and past sales keep the name and price they were charged.
 `defaultMenu()` and `defaultIngredients()` in `src/App.jsx` are only the starting
 point for a brand-new deployment.
 
+## The title card
+
+After signing in, the shop's logo animation plays before the register appears
+(`src/assets/video/intro.*`). It is deliberately not three seconds added on top of
+the wait: the shop's data is being fetched behind it, so the register is ready by
+the time the bowl finishes assembling.
+
+- **Once per session**, not on every reload — a shift should not replay it every
+  time the tablet wakes.
+- **Tap to skip**, and it auto-advances when it ends. Nobody waits more than five
+  seconds regardless of what the video does.
+- **Muted and inline**, which is the only way a phone autoplays at all, and the
+  right behaviour for a counter.
+- **Skipped entirely under reduced motion.**
+- **Skipped if it cannot play** — a browser without the codec, or a first-ever
+  open with no connection. It gets out of the way rather than stranding anyone.
+
+The source was 4.19 MB at 2880x2880 with an audio track. It ships at 720x720 with
+no audio, in two formats so it plays everywhere (Safari and iOS take the H.264,
+Chromium builds without those codecs take the VP9; the browser downloads only the
+one it picks). Its grey backdrop was keyed out and composited onto the app's own
+paper colour, so the video blends into the screen instead of sitting in a visible
+box.
+
+One limit: the service worker does not cache the video, because media elements
+fetch by byte range and a range request cannot be served from the cache without
+synthesising partial responses. In practice the browser's own cache covers a
+reopen during an outage; when it does not, the intro skips and the register opens
+as normal.
+
 ## Taking an order
 
 The register walks one decision per screen, and nothing advances on its own — each

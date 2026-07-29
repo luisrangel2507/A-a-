@@ -28,6 +28,9 @@ import MenuEditor from "./MenuEditor";
 import { canSeeInventory, canVoidSale, canVoidAnySale, canCloseOut } from "./lib/roles";
 import bowlImage from "./assets/bowl.jpg";
 import markImage from "./assets/mark.png";
+import introMp4 from "./assets/video/intro.mp4";
+import introWebm from "./assets/video/intro.webm";
+import introPoster from "./assets/video/intro-poster.jpg";
 
 // Photos are picked up from the filesystem by name: drop mango_cream.jpg into
 // assets/flavors/ and that flavour starts showing it, with no code change.
@@ -363,6 +366,63 @@ function Receipt({ order, menu, onClose }) {
         </div>
       </div>
     </div>
+  );
+}
+
+// The shop's title card, between signing in and the register.
+//
+// It runs once per session rather than on every reload, and it covers the shop data
+// loading rather than being three seconds added on top of it — the register is ready
+// by the time the bowl finishes assembling. Anyone in a hurry taps once to skip.
+//
+// Muted and inline because that is the only way a phone will autoplay at all, and
+// because a counter should not make noise. If the file cannot play — no connection
+// on a first-ever open, a codec a browser refuses — it gets out of the way instead
+// of stranding someone in front of a blank screen.
+function Intro({ onDone }) {
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    // Whatever happens to the video, nobody waits longer than this to reach the
+    // register.
+    const bail = setTimeout(onDone, 5000);
+    // Autoplay can still be refused; if it is, do not sit on a frozen first frame.
+    const v = videoRef.current;
+    const play = v?.play?.();
+    if (play?.catch) play.catch(() => onDone());
+    return () => clearTimeout(bail);
+  }, [onDone]);
+
+  return (
+    <button
+      type="button"
+      onClick={onDone}
+      aria-label="Skip"
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center"
+      style={{ background: COLOR.bg }}
+    >
+      <video
+        ref={videoRef}
+        poster={introPoster}
+        muted
+        playsInline
+        autoPlay
+        preload="auto"
+        onEnded={onDone}
+        onError={onDone}
+        className="w-full"
+        style={{ maxWidth: 420, aspectRatio: "1 / 1" }}
+      >
+        {/* Two sources so this plays wherever it is opened: Safari and iOS need the
+            H.264, and a Chromium built without those codecs takes the VP9. The
+            browser downloads only the one it picks. */}
+        <source src={introWebm} type="video/webm" />
+        <source src={introMp4} type="video/mp4" />
+      </video>
+      <span className="mt-6 text-xs font-medium" style={{ color: COLOR.inkSoft }}>
+        Tap to skip
+      </span>
+    </button>
   );
 }
 
@@ -782,6 +842,23 @@ export default function AcaiControlApp() {
   // for before the money changes hands.
   const [paying, setPaying] = useState(false);
   const [sheetClosing, setSheetClosing] = useState(false);
+  const [introSeen, setIntroSeen] = useState(() => {
+    try {
+      if (sessionStorage.getItem("intro-seen-v1")) return true;
+    } catch {
+      // Private mode or a blocked store: play it, that is the harmless direction.
+    }
+    return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+  });
+
+  function finishIntro() {
+    try {
+      sessionStorage.setItem("intro-seen-v1", "1");
+    } catch {
+      // Nothing to do; it will simply play again next time.
+    }
+    setIntroSeen(true);
+  }
   const [tipChoice, setTipChoice] = useState(0);
   const [tipCustom, setTipCustom] = useState("");
   const [payMethod, setPayMethod] = useState(null);
@@ -1454,6 +1531,17 @@ export default function AcaiControlApp() {
       <>
         {typography}
         <SignInScreen onSignedIn={setMe} />
+      </>
+    );
+  }
+
+  // Before the register, and in front of the loading state rather than added to it:
+  // the shop data is being fetched behind this.
+  if (!introSeen) {
+    return (
+      <>
+        {typography}
+        <Intro onDone={finishIntro} />
       </>
     );
   }
