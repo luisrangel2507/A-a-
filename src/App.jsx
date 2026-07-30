@@ -25,7 +25,13 @@ import auth from "./lib/auth";
 import { COLOR } from "./theme";
 import { SignInScreen, TeamPanel } from "./Auth";
 import MenuEditor from "./MenuEditor";
-import { canSeeInventory, canVoidSale, canVoidAnySale, canCloseOut } from "./lib/roles";
+import {
+  canSeeInventory,
+  canVoidSale,
+  canVoidAnySale,
+  canCloseOut,
+  canSeeShopFigures,
+} from "./lib/roles";
 import bowlImage from "./assets/bowl.jpg";
 import markImage from "./assets/mark.png";
 import introMp4 from "./assets/video/intro.mp4";
@@ -989,8 +995,47 @@ export default function AcaiControlApp() {
     };
   }, [me]);
 
+  // Reports and Inventory are read from a shared shop, so they cannot be whatever
+  // this device happened to ring up. Without this the owner opened Reports and read a
+  // total that omitted every sale taken on any other register — measured at $39.97
+  // on screen while the shop had actually taken $49.96 — until someone reloaded.
+  //
+  // Only on those two tabs: the register's own screen holds optimistic state during a
+  // sale, and re-reading underneath it would fight that.
+  useEffect(() => {
+    if (!me || !ready) return undefined;
+    if (tab !== "reportes" && tab !== "inventario") return undefined;
+    let alive = true;
+
+    async function refresh() {
+      try {
+        const listed = await salesApi.list();
+        if (!alive || listed.stale) return;
+        setSales(listed.sales);
+        const shop = await storage.get(STORAGE_SHOP);
+        if (!alive || shop.stale) return;
+        const parsed = JSON.parse(shop.value);
+        if (parsed.ingredients) setIngredients(parsed.ingredients);
+        if (parsed.closeouts) setCloseouts(parsed.closeouts);
+      } catch (e) {
+        if (e instanceof SessionExpiredError) handleStorageError(e);
+        // Anything else is a connection that is already reported elsewhere; the
+        // figures on screen stay as they were rather than emptying out.
+      }
+    }
+
+    refresh();
+    // Also while the tab is left open, since a shift watches this during service.
+    const timer = setInterval(refresh, 20000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [me, ready, tab]);
+
   // Inventory belongs to the admin and whoever is running the shift.
   const showInventory = canSeeInventory(me?.role);
+  const seeFigures = canSeeShopFigures(me?.role);
 
   // Whoever signs in next may not be allowed on the tab left open by the last person.
   useEffect(() => {
@@ -1524,6 +1569,15 @@ export default function AcaiControlApp() {
   // Below the report deliberately: both read from it. One close-out per day, and the
   // latest wins if a day somehow got two.
   const todayCloseout = [...closeouts].reverse().find((c) => c.day === todayKey()) || null;
+
+  // What this person is shown in the sales list. Whoever runs the shop sees the whole
+  // day; register staff see their own, since finding their own mis-ring is the reason
+  // they have the list at all.
+  const myLog = seeFigures
+    ? report.todayLog
+    : report.todayLog
+        .map((o) => ({ ...o, bowls: o.bowls.filter((b) => b.userId && b.userId === me?.id) }))
+        .filter((o) => o.bowls.length > 0);
   // One notion of "is this a usable count", so the button and saveCloseout can never
   // disagree — an enabled button that silently does nothing is worse than a disabled one.
   const countedValid = Number.isFinite(parseFloat(countedCash)) && parseFloat(countedCash) >= 0;
@@ -2149,6 +2203,11 @@ export default function AcaiControlApp() {
 
         {tab === "reportes" && (
           <div className="space-y-4">
+            {/* The shop's books. Register staff keep this tab — it is where they find
+                and void a sale they just rang up wrong — but not the day's takings,
+                what each colleague sold, or the tax being held. */}
+            {seeFigures && (
+              <>
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-2xl p-4" style={{ background: COLOR.forest }}>
                 <p className="text-sm" style={{ color: "#A7C4B6" }}>Sales today</p>
@@ -2230,6 +2289,9 @@ export default function AcaiControlApp() {
                 </p>
               )}
             </div>
+
+              </>
+            )}
 
             {/* Counting the drawer at close. Cash is the only half that has to be
                 matched by hand — the card total comes from the reader. */}
@@ -2315,14 +2377,19 @@ export default function AcaiControlApp() {
               </div>
             )}
 
-            {/* Today's sales, so a wrong one can be found and undone. */}
+            {/* Today's sales, so a wrong one can be found and undone. Register staff
+                see their own, which is what they need it for. */}
             <div className="rounded-2xl p-4" style={{ background: COLOR.card, boxShadow: COLOR.lift }}>
-              <p className="text-base font-semibold mb-3">Today's sales</p>
-              {report.todayLog.length === 0 ? (
-                <p className="text-sm" style={{ color: COLOR.inkSoft }}>Nothing rung up yet today.</p>
+              <p className="text-base font-semibold mb-3">
+                {seeFigures ? "Today's sales" : "Your sales today"}
+              </p>
+              {myLog.length === 0 ? (
+                <p className="text-sm" style={{ color: COLOR.inkSoft }}>
+                  {seeFigures ? "Nothing rung up yet today." : "You have not rung anything up yet today."}
+                </p>
               ) : (
                 <div className="space-y-3">
-                  {report.todayLog.map((order) => (
+                  {myLog.map((order) => (
                     <div
                       key={order.key}
                       className="border-b pb-3 last:border-0 last:pb-0"
@@ -2401,6 +2468,8 @@ export default function AcaiControlApp() {
               )}
             </div>
 
+            {seeFigures && (
+              <>
             <div className="rounded-2xl p-4" style={{ background: COLOR.card, boxShadow: COLOR.lift }}>
               <p className="text-base font-semibold mb-3">Sold by</p>
               {report.people.length === 0 ? (
@@ -2454,6 +2523,8 @@ export default function AcaiControlApp() {
                   {report.lowStock.map((i) => i.name).join(", ")}
                 </p>
               </div>
+            )}
+              </>
             )}
           </div>
         )}

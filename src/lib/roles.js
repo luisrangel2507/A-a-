@@ -24,6 +24,14 @@ export const canVoidAnySale = (role) => role === "owner" || role === "manager";
 
 // Counting the drawer and settling the day belongs to whoever is closing the shop.
 export const canCloseOut = (role) => role === "owner" || role === "manager";
+
+// The shop's books: the day's takings, what each person sold, the tax held, the
+// charts. Not the register's business, the same way the store room is not.
+//
+// This is why register staff still have a Reports tab rather than none: they need
+// to find a sale they just rang up wrong and void it. So the tab stays and shows
+// them their own sales; the figures behind it do not.
+export const canSeeShopFigures = (role) => role === "owner" || role === "manager";
 export const canVoidSale = (role, sale, userId) =>
   canVoidAnySale(role) || (Boolean(userId) && sale.userId === userId);
 

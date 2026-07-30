@@ -169,11 +169,21 @@ are not readable by anyone who finds the URL.
   that screen closes permanently.
 - **Roles** (`src/lib/roles.js` is the single source of truth):
 
-  | | Sales | Inventory | Reports | Staff accounts |
+  | | Sales | Inventory | The day's figures | Staff accounts |
   |---|---|---|---|---|
   | **Owner** | ✅ | ✅ | ✅ | ✅ |
   | **Manager** | ✅ | ✅ | ✅ | — |
-  | **Staff** | ✅ | — | ✅ | — |
+  | **Staff** | ✅ | — | own sales only | — |
+
+  Register staff keep a Reports tab, but it holds only their own sales for today —
+  not the takings, not what each colleague sold, not the tax being held, not the
+  close-out. They have the list because finding a sale they just rang up wrong and
+  voiding it is their job; the shop's books are not.
+
+  Reports and Inventory re-read the shared shop when opened and every twenty
+  seconds while they stay open. Without that, a register showed a day made only of
+  what that device had rung up: measured at $39.97 on screen while the shop had
+  actually taken $49.96.
 
   The owner account is created once by first-run setup; the Team screen hands
   out Manager and Staff, and the API refuses any other role.
