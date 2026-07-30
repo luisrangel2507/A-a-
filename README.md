@@ -74,6 +74,13 @@ the choices already made — size and flavor in the chip beside **Back**, toppin
 the summary above **Continue** — so the bowl being built is readable without stepping
 back. Back walks one screen at a time; the progress dots jump anywhere.
 
+Three of the same bowl is one trip, not three. The review step asks how many, and
+the cart line carries a count you can change with − and +; ringing up the same bowl
+again adds to that line rather than starting a second one. Each bowl still becomes
+its own sale row, because stock, tax, tips and the day's bowl count are all per
+bowl. A receipt collapses identical bowls into `2× Cacao Cream`, while Reports keeps
+them apart — voiding one of four is a real thing to want.
+
 The wizard is data, not hard-coded screen numbers: `STEPS` in `src/App.jsx` is built
 from `CATEGORY_ORDER`, so adding or reordering a paid category changes the flow
 without renumbering anything.

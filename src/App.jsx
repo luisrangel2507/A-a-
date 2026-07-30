@@ -281,6 +281,20 @@ function StepHeader({ onBack, parts = [] }) {
   );
 }
 
+// Collapses identical bowls in one order into a single line with a count. Identical
+// means the same flavour, size, topping set and voided state — a voided bowl has to
+// stay visibly separate from the ones that were served.
+function groupIdentical(bowls) {
+  const out = [];
+  for (const b of bowls) {
+    const key = [b.productId, b.size, [...(b.toppingIds || [])].sort().join(), b.voided ? "v" : ""].join("|");
+    const hit = out.find((o) => o.key === key);
+    if (hit) hit.count += 1;
+    else out.push({ ...b, key, count: 1 });
+  }
+  return out;
+}
+
 // A receipt covers one order — everything charged in a single checkout, which is
 // what the customer handed over money for. Laid out to survive a print: no colour
 // worth losing, and the print stylesheet in index.css hides the rest of the app so
@@ -314,7 +328,10 @@ function Receipt({ order, menu, onClose }) {
           {order.userName && <p className="text-center text-xs">Served by {order.userName}</p>}
 
           <div className="my-3 space-y-2 border-y py-3" style={{ borderColor: "#999" }}>
-            {order.bowls.map((b) => {
+            {/* Four of the same bowl is one line saying 4x, not four identical lines a
+                customer has to count. Reports keeps them apart, because voiding one of
+                four is a real thing to want; a receipt has no such need. */}
+            {groupIdentical(order.bowls).map((b) => {
               const extras = (b.toppingIds || [])
                 .filter((id) => !menu.includedToppingIds.includes(id))
                 .map((id) => menu.toppings.find((t) => t.id === id)?.name)
@@ -323,10 +340,11 @@ function Receipt({ order, menu, onClose }) {
                 <div key={b.id} style={{ opacity: b.voided ? 0.5 : 1 }}>
                   <div className="flex items-baseline justify-between gap-2">
                     <span style={{ textDecoration: b.voided ? "line-through" : "none" }}>
+                      {b.count > 1 && <span className="font-mono-num">{b.count}× </span>}
                       {b.productName} · <span className="capitalize">{b.size}</span>
                     </span>
                     <span className="font-mono-num" style={{ textDecoration: b.voided ? "line-through" : "none" }}>
-                      {money(b.price)}
+                      {money(b.price * b.count)}
                     </span>
                   </div>
                   {extras.length > 0 && (
@@ -371,6 +389,40 @@ function Receipt({ order, menu, onClose }) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Minus / count / plus. Big enough to hit without looking, which is the only size
+// worth building for a counter.
+function Stepper({ value, onChange, min = 1, max = 99, label }) {
+  const Btn = ({ to, glyph, name }) => (
+    <button
+      type="button"
+      onClick={() => onChange(to)}
+      disabled={to < min || to > max}
+      aria-label={`${name} ${label}`}
+      className="flex h-9 w-9 items-center justify-center rounded-lg border text-lg font-semibold"
+      style={{
+        borderColor: COLOR.line,
+        color: to < min || to > max ? COLOR.line : COLOR.forest,
+        background: COLOR.card,
+      }}
+    >
+      {glyph}
+    </button>
+  );
+  return (
+    <div className="flex items-center gap-2">
+      <Btn to={value - 1} glyph="−" name="One fewer" />
+      <span
+        className="font-mono-num w-7 text-center text-base font-semibold"
+        aria-live="polite"
+        style={{ color: COLOR.ink }}
+      >
+        {value}
+      </span>
+      <Btn to={value + 1} glyph="+" name="One more" />
     </div>
   );
 }
@@ -892,6 +944,7 @@ export default function AcaiControlApp() {
   // for before the money changes hands.
   const [paying, setPaying] = useState(false);
   const [sheetClosing, setSheetClosing] = useState(false);
+  const [builderQty, setBuilderQty] = useState(1);
   const [introSeen, setIntroSeen] = useState(() => {
     try {
       return Boolean(sessionStorage.getItem("intro-seen-v1"));
@@ -1194,24 +1247,41 @@ export default function AcaiControlApp() {
 
   function resetBuilder() {
     setBuilder({ productId: null, size: null, toppingIds: [...menu.includedToppingIds] });
+    setBuilderQty(1);
     setStep(stepIndex("size"));
   }
 
+  // The same bowl ordered twice is one line with a count, not two lines — a queue of
+  // four identical bowls should read as "4x", and the register should not have to
+  // walk the eight screens four times to say so.
+  const sameBowl = (a, b) =>
+    a.productId === b.productId &&
+    a.size === b.size &&
+    a.toppingIds.length === b.toppingIds.length &&
+    [...a.toppingIds].sort().join() === [...b.toppingIds].sort().join();
+
   function addToCart() {
     if (!builderReady) return;
-    setCart((c) => [
-      ...c,
-      {
-        cartId: uid(),
-        productId: currentProduct.id,
-        productName: currentProduct.name,
-        size: builder.size,
-        toppingIds: [...builder.toppingIds],
-        price: builderPrice,
-      },
-    ]);
+    const bowl = {
+      productId: currentProduct.id,
+      productName: currentProduct.name,
+      size: builder.size,
+      toppingIds: [...builder.toppingIds],
+      price: builderPrice,
+    };
+    const qty = Math.max(1, builderQty);
+    setCart((c) => {
+      const at = c.findIndex((i) => sameBowl(i, bowl));
+      if (at === -1) return [...c, { ...bowl, cartId: uid(), qty }];
+      return c.map((i, n) => (n === at ? { ...i, qty: (i.qty || 1) + qty } : i));
+    });
     resetBuilder();
-    showToast("Added to order");
+    showToast(qty === 1 ? "Added to order" : `Added ${qty} to order`);
+  }
+
+  function setQty(cartId, next) {
+    if (next < 1) return removeFromCart(cartId);
+    setCart((c) => c.map((i) => (i.cartId === cartId ? { ...i, qty: next } : i)));
   }
 
   function removeFromCart(cartId) {
@@ -1222,7 +1292,10 @@ export default function AcaiControlApp() {
   // prices stay as listed and tax lands on the subtotal. Rounded to the cent once,
   // on the whole order, rather than per bowl.
   const taxRate = Number(menu.taxRate) || 0;
-  const cartSubtotal = cart.reduce((s, i) => s + i.price, 0);
+  // Flattened to one entry per bowl. Stock, tax, tips and the day's bowl count are
+  // all per bowl, so a line with a count of three is three of everything.
+  const bowlsInCart = cart.flatMap((i) => Array.from({ length: i.qty || 1 }, () => i));
+  const cartSubtotal = bowlsInCart.reduce((s, i) => s + i.price, 0);
   const cartTax = Math.round(cartSubtotal * taxRate * 100) / 100;
   const cartTotal = cartSubtotal + cartTax;
 
@@ -1261,11 +1334,11 @@ export default function AcaiControlApp() {
       const ing = nextIngredients.find((i) => i.id === ingredientId);
       if (ing) ing.stock = Math.max(0, ing.stock - amount);
     };
-    cart.forEach((item) => {
+    bowlsInCart.forEach((item) => {
       consumptionFor(item, menu, nextIngredients).forEach(({ id, amount }) => consume(id, amount));
     });
     const now = new Date().toISOString();
-    const rung = cart.map((item) => ({
+    const rung = bowlsInCart.map((item) => ({
         id: uid(),
         date: now,
         productId: item.productId,
@@ -1682,7 +1755,7 @@ export default function AcaiControlApp() {
             className="absolute right-4 top-5 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold shadow-md"
             style={{ background: COLOR.coral, color: "#fff" }}
           >
-            <ShoppingBag size={14} /> {cart.length} · {money(cartTotal)}
+            <ShoppingBag size={14} /> {bowlsInCart.length} · {money(cartTotal)}
           </button>
         )}
       </div>
@@ -2047,6 +2120,18 @@ export default function AcaiControlApp() {
                       </span>
                     </div>
                   </div>
+                  {/* How many of this exact bowl. Set here rather than by walking the
+                      eight screens again, which is what a group ordering the same
+                      thing used to cost. */}
+                  <div className="flex items-center justify-between rounded-xl px-3 py-2" style={{ background: COLOR.bg }}>
+                    <span className="text-sm font-medium" style={{ color: COLOR.ink }}>How many</span>
+                    <Stepper
+                      value={builderQty}
+                      onChange={setBuilderQty}
+                      min={1}
+                      label="bowls of this"
+                    />
+                  </div>
                   {/* Nothing can be added until both choices are actually made. */}
                   <button
                     onClick={addToCart}
@@ -2058,7 +2143,11 @@ export default function AcaiControlApp() {
                     }}
                   >
                     <Plus size={18} />
-                    {builderReady ? "Add to order" : "Choose a size and flavor"}
+                    {!builderReady
+                      ? "Choose a size and flavor"
+                      : builderQty === 1
+                      ? "Add to order"
+                      : `Add ${builderQty} to order`}
                   </button>
                 </div>
               )}
@@ -2076,8 +2165,8 @@ export default function AcaiControlApp() {
               ) : (
                 <div className="space-y-2">
                   {cart.map((item) => (
-                    <div key={item.cartId} className="flex items-center justify-between text-sm">
-                      <div>
+                    <div key={item.cartId} className="flex items-start justify-between gap-2 text-sm">
+                      <div className="min-w-0">
                         <span className="font-medium">{item.productName}</span>
                         <span style={{ color: COLOR.inkSoft }}> · {item.size}</span>
                         {item.toppingIds.filter((id) => !menu.includedToppingIds.includes(id)).length > 0 && (
@@ -2088,10 +2177,28 @@ export default function AcaiControlApp() {
                               .join(", ")}
                           </div>
                         )}
+                        <div className="mt-1">
+                          <Stepper
+                            value={item.qty || 1}
+                            onChange={(n) => setQty(item.cartId, n)}
+                            label={`${item.productName} bowls`}
+                          />
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono-num text-sm">{money(item.price)}</span>
-                        <button onClick={() => removeFromCart(item.cartId)}>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {/* The line's total, with the each-price alongside when there is
+                            more than one, so the arithmetic is checkable at a glance. */}
+                        <span className="text-right">
+                          <span className="font-mono-num block text-sm font-semibold">
+                            {money(item.price * (item.qty || 1))}
+                          </span>
+                          {(item.qty || 1) > 1 && (
+                            <span className="font-mono-num block text-xs" style={{ color: COLOR.inkSoft }}>
+                              {money(item.price)} each
+                            </span>
+                          )}
+                        </span>
+                        <button onClick={() => removeFromCart(item.cartId)} aria-label={`Remove ${item.productName}`}>
                           <X size={14} color={COLOR.inkSoft} />
                         </button>
                       </div>
